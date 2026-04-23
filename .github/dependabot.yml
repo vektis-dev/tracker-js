@@ -1,0 +1,45 @@
+version: 2
+
+updates:
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "America/New_York"
+
+    groups:
+      minor-and-patch:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+
+    open-pull-requests-limit: 3
+
+    labels:
+      - "dependencies"
+      - "automated"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "America/New_York"
+
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+
+    labels:
+      - "dependencies"
+      - "github-actions"
+      - "automated"
