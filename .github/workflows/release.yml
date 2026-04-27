@@ -1,0 +1,59 @@
+# Publish via npm Trusted Publishing (OIDC). See VEKTIS ADR 004.
+# A trusted-publisher entry must exist on npmjs.com for @vektis-io/tracker
+# scoped to vektis-dev/tracker-js + .github/workflows/release.yml before
+# tagging. No NPM_TOKEN / NODE_AUTH_TOKEN is referenced — that is intentional.
+
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          cache: 'npm'
+          registry-url: 'https://registry.npmjs.org/'
+
+      # Trusted Publishing (OIDC) requires npm >=11.5.1; Node 20 ships npm 10.x.
+      # Upgrade explicitly so `npm publish --provenance` uses the OIDC code path.
+      - run: npm install -g npm@latest
+
+      - run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Run tests
+        run: npm test
+
+      - name: Build (tsup)
+        run: npm run build
+
+      - name: Bundle size check
+        run: npm run size
+
+      - name: Publish to npm with provenance
+        # Prerelease versions (e.g., 1.0.0-rc.1) MUST be published under a
+        # non-'latest' dist-tag, otherwise npm rejects with EUSAGE. Stable
+        # versions publish to 'latest' by default. Detect from package.json.
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          if [[ "$VERSION" == *-* ]]; then
+            echo "Prerelease version $VERSION; publishing under 'rc' dist-tag"
+            npm publish --provenance --access public --tag rc
+          else
+            echo "Stable version $VERSION; publishing to default 'latest' dist-tag"
+            npm publish --provenance --access public
+          fi

@@ -1,0 +1,42 @@
+import { defineConfig } from "tsup";
+
+export default defineConfig([
+  {
+    entry: { "vektis-tracker": "src/index.ts" },
+    format: ["esm"],
+    dts: { entry: { index: "src/index.ts" } },
+    clean: true,
+    sourcemap: true,
+    treeshake: true,
+    splitting: false,
+    minify: true,
+    outDir: "dist",
+    target: "es2020",
+    outExtension: () => ({ js: ".esm.js" }),
+  },
+  {
+    entry: { "vektis-tracker": "src/index.ts" },
+    format: ["iife"],
+    globalName: "vektis",
+    dts: false,
+    clean: false,
+    sourcemap: true,
+    treeshake: true,
+    minify: true,
+    outDir: "dist",
+    target: "es2020",
+    outExtension: () => ({ js: ".iife.js" }),
+  },
+  {
+    entry: { errors: "src/errors.ts" },
+    format: ["esm"],
+    dts: { entry: { errors: "src/errors.ts" } },
+    clean: false,
+    sourcemap: true,
+    treeshake: true,
+    splitting: false,
+    minify: true,
+    outDir: "dist",
+    target: "es2020",
+  },
+]);
