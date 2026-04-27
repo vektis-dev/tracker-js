@@ -41,8 +41,22 @@ jobs:
         # an explicit --tag, to avoid accidentally aliasing 'latest' to a prerelease.
         # Mirror the same logic the release workflow uses: prerelease → --tag rc;
         # stable → default (latest).
+        #
+        # Guard: skip when the version in package.json is already published.
+        # `npm publish --dry-run` validates the tarball would be acceptable to
+        # npm — including the "version not yet taken" check — so it always
+        # fails on a PR that doesn't bump the version. The dry-run is most
+        # valuable on version-bumping PRs (catches bad tarball contents
+        # before tagging); on no-op PRs (docs, CI tweaks, dep bumps) we have
+        # nothing to validate against npm anyway, so the skip is safe.
         run: |
+          PACKAGE_NAME=$(node -p "require('./package.json').name")
           VERSION=$(node -p "require('./package.json').version")
+          if npm view "${PACKAGE_NAME}@${VERSION}" version > /dev/null 2>&1; then
+            echo "Version $VERSION already published — skipping dry-run."
+            echo "Bump version in package.json on the PR that ships the next release."
+            exit 0
+          fi
           if [[ "$VERSION" == *-* ]]; then
             echo "Prerelease version $VERSION detected; using --tag rc"
             npm publish --dry-run --tag rc
