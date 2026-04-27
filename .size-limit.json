@@ -1,0 +1,12 @@
+[
+  {
+    "name": "ESM bundle (gzip)",
+    "path": "dist/vektis-tracker.esm.js",
+    "limit": "8 KB"
+  },
+  {
+    "name": "IIFE bundle (gzip)",
+    "path": "dist/vektis-tracker.iife.js",
+    "limit": "8 KB"
+  }
+]

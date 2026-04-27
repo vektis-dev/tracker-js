@@ -1,0 +1,77 @@
+# Integration test job. Boots a vanalytics stack via services-block (Postgres
+# 18 + Redis 7) on a dispatched run or a push to main. Skipped on every PR
+# because vanalytics setup takes ~30s and the contract test (in ci.yml) catches
+# schema drift earlier.
+
+name: Integration
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+jobs:
+  integration-test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: vanalytics
+          POSTGRES_PASSWORD: vanalytics
+          POSTGRES_DB: vanalytics
+        ports: [5432:5432]
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports: [6379:6379]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          cache: 'npm'
+
+      - run: npm install -g npm@latest
+
+      - run: npm ci
+
+      - name: Boot vanalytics
+        env:
+          DATABASE_URL: postgresql://vanalytics:vanalytics@localhost:5432/vanalytics
+          REDIS_URL: redis://localhost:6379
+          ANALYTICS_INTERNAL_SECRET: ci-internal-secret-do-not-use-in-prod
+          PORT: '3333'
+        run: |
+          git clone https://github.com/vektis-dev/vanalytics.git /tmp/vanalytics
+          cd /tmp/vanalytics
+          yarn install --frozen-lockfile
+          cd server
+          yarn db:migrate && yarn db:seed
+          yarn dev:full &
+          for i in {1..30}; do
+            if curl -sf http://localhost:3333/api/v1/health > /dev/null; then
+              echo "vanalytics ready"
+              break
+            fi
+            sleep 1
+          done
+
+      - name: Run integration tests
+        env:
+          TRACKER_INTEGRATION: '1'
+          TRACKER_VANALYTICS_URL: http://localhost:3333
+          TRACKER_VANALYTICS_TEST_KEY: vek_test_pk_local_playground
+          TRACKER_VANALYTICS_ORG_ID: '00000000-0000-4000-8000-000000000001'
+          TRACKER_VANALYTICS_INTERNAL_SECRET: ci-internal-secret-do-not-use-in-prod
+        run: npm run test:integration

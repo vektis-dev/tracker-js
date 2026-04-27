@@ -1,0 +1,52 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches-ignore: [main]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          cache: 'npm'
+
+      # Pin npm to latest. Release workflow needs npm >=11.5.1 for OIDC publish;
+      # CI runs `npm publish --dry-run` for tarball verification — match versions
+      # across both jobs to avoid surprises between dry-run and real publish.
+      - run: npm install -g npm@latest
+
+      - run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Run tests
+        run: npm test
+
+      - name: Build (tsup)
+        run: npm run build
+
+      - name: Bundle size check
+        run: npm run size
+
+      - name: Publish dry-run (verifies tarball contents)
+        # npm refuses to publish a prerelease version (e.g., 1.0.0-rc.1) without
+        # an explicit --tag, to avoid accidentally aliasing 'latest' to a prerelease.
+        # Mirror the same logic the release workflow uses: prerelease → --tag rc;
+        # stable → default (latest).
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          if [[ "$VERSION" == *-* ]]; then
+            echo "Prerelease version $VERSION detected; using --tag rc"
+            npm publish --dry-run --tag rc
+          else
+            echo "Stable version $VERSION; using default tag (latest)"
+            npm publish --dry-run
+          fi
