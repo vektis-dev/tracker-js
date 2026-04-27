@@ -1,10 +1,20 @@
-// Integration test against a locally-running vanalytics. Skipped by default;
-// run with TRACKER_INTEGRATION=1 (handled by jest.config.js) AND a vanalytics
-// stack on localhost:3333 (vanalytics/docker-compose.yml + dev:full).
-//
-// Optional: TRACKER_VANALYTICS_INTERNAL_SECRET enables the deep verification
-// path that GETs /api/v1/internal/events/verify to confirm rows landed in DB.
-// Without it, the test confirms the SDK→ingest 202 path only.
+/**
+ * @jest-environment node
+ *
+ * Integration test against a locally-running vanalytics. Skipped by default;
+ * run with TRACKER_INTEGRATION=1 (handled by jest.config.js) AND a vanalytics
+ * stack on localhost:3333 (vanalytics/docker-compose.yml + dev:full).
+ *
+ * Uses the `node` environment (not jsdom) because jest-environment-jsdom
+ * strips Node's native `fetch` global. The SDK's window/document/navigator
+ * usages are all guarded with `typeof === 'undefined'` checks, so it runs
+ * cleanly in the node env — at the cost of not exercising the unload
+ * listeners (those are covered by index.test.ts in the jsdom env).
+ *
+ * Optional: TRACKER_VANALYTICS_INTERNAL_SECRET enables the deep verification
+ * path that GETs /api/v1/internal/events/verify to confirm rows landed in DB.
+ * Without it, the test confirms the SDK→ingest 202 path only.
+ */
 
 import * as vektis from "../src/index";
 
