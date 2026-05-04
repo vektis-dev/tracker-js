@@ -56,7 +56,7 @@ After install, run `claude /vektis-install` (or any other `/vektis-*` skill) fro
 
 Re-running is safe: the script tracks which files came from this package via a `.vektis-managed` marker and only updates them when this package ships new content. Works under npm, pnpm, yarn, and bun. Failure modes (no `.claude/`, permission denied, no project root found) all exit zero with a one-line hint.
 
-A Claude Code plugin marketplace install path is coming next; see the [Installing the skills page](https://docs.vektis.io/integrations/tracker/installing-skills) on the docs once it's live.
+The `_shared/` directory under `.claude/skills/` is vendor-controlled — `install-skills` always overwrites it. Don't edit those files; they'll be replaced on the next run. A Claude Code plugin marketplace install path is coming soon as an alternative to this command.
 
 ## Test vs Live keys
 

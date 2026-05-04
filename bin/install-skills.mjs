@@ -9,9 +9,8 @@ import {
   readdirSync,
   copyFileSync,
   writeFileSync,
-  statSync,
 } from "node:fs";
-import { join, dirname, resolve, sep } from "node:path";
+import { join, dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const DOC_LINK = "https://docs.vektis.io/integrations/tracker/skills";
@@ -33,17 +32,11 @@ function findProjectRoot(start) {
 }
 
 function findBundledSkillsDir(scriptUrl) {
-  // scriptUrl points to .../scripts/lib/install-skills.mjs in the published
-  // package. Walk up looking for a sibling dist/skills/MANIFEST.json.
-  let dir = dirname(fileURLToPath(scriptUrl));
-  for (let i = 0; i < 6; i++) {
-    const candidate = join(dir, "dist", "skills", "MANIFEST.json");
-    if (existsSync(candidate)) return dirname(candidate);
-    const parent = dirname(dir);
-    if (parent === dir) break;
-    dir = parent;
-  }
-  return null;
+  // bin/install-skills.mjs is always one level inside the package root, with
+  // dist/skills/MANIFEST.json a sibling of bin/.
+  const pkgRoot = dirname(dirname(fileURLToPath(scriptUrl)));
+  const skillsDir = join(pkgRoot, "dist", "skills");
+  return existsSync(join(skillsDir, "MANIFEST.json")) ? skillsDir : null;
 }
 
 function copyDirRecursive(src, dest) {
@@ -100,7 +93,7 @@ export async function installSkills({ argv = [], env = process.env, cwd = proces
   const bundleDir = findBundledSkillsDir(scriptUrl);
   if (!bundleDir) {
     console.error(
-      "vektis: skills bundle missing — run `npm run build` or reinstall @vektis-io/tracker",
+      "vektis: skills bundle missing from this install of @vektis-io/tracker. Reinstall the package and try again.",
     );
     return 0;
   }
@@ -110,40 +103,29 @@ export async function installSkills({ argv = [], env = process.env, cwd = proces
   const claudeDir = join(projectRoot, ".claude");
   const skillsDir = join(claudeDir, "skills");
 
-  if (!existsSync(claudeDir)) {
-    if (!flags.create) {
-      console.log(
-        `vektis: ${claudeDir} does not exist. Re-run with --create, or create a .claude/ directory in your project. See ${DOC_LINK}`,
-      );
-      return 0;
-    }
-    try {
-      mkdirSync(skillsDir, { recursive: true });
-    } catch (err) {
-      console.error(
-        `vektis: could not create ${skillsDir} (${err.code || err.message}). See ${DOC_LINK}`,
-      );
-      return 0;
-    }
-  } else if (!existsSync(skillsDir)) {
-    try {
-      mkdirSync(skillsDir, { recursive: true });
-    } catch (err) {
-      console.error(
-        `vektis: could not create ${skillsDir} (${err.code || err.message}). See ${DOC_LINK}`,
-      );
-      return 0;
-    }
+  if (!existsSync(claudeDir) && !flags.create) {
+    console.log(
+      `vektis: ${claudeDir} does not exist. Re-run with --create, or create a .claude/ directory in your project. See ${DOC_LINK}`,
+    );
+    return 0;
+  }
+  try {
+    mkdirSync(skillsDir, { recursive: true });
+  } catch (err) {
+    console.error(
+      `vektis: could not create ${skillsDir} (${err.code || err.message}). See ${DOC_LINK}`,
+    );
+    return 0;
   }
 
   let installed = 0;
   let unchanged = 0;
   let skippedCustomized = 0;
 
-  // First copy `_shared/` if present in the bundle (no marker needed — it's a
-  // dependency directory referenced by name, not invoked as a skill).
+  // First copy `_shared/` if present in the bundle (no marker — it's a
+  // vendor-controlled dependency directory, always overwritten).
   const sharedSrc = join(bundleDir, "_shared");
-  if (existsSync(sharedSrc) && statSync(sharedSrc).isDirectory()) {
+  if (existsSync(sharedSrc)) {
     const sharedDest = join(skillsDir, "_shared");
     try {
       copyDirRecursive(sharedSrc, sharedDest);

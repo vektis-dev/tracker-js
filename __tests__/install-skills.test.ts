@@ -286,6 +286,7 @@ describe("install-skills", () => {
     const r = runInstall({ scriptUrl, projectRoot: proj });
     expect(r.status).toBe(0);
     expect(r.stderr).toMatch(/skills bundle missing/);
+    expect(r.stderr).toMatch(/Reinstall the package/);
   });
 
   test("EACCES on a target subdirectory → logs and continues with remaining skills", () => {

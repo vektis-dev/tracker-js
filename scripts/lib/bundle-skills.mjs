@@ -11,7 +11,6 @@ import {
   mkdirSync,
   copyFileSync,
   writeFileSync,
-  statSync,
 } from "node:fs";
 import { join, relative } from "node:path";
 
