@@ -29,8 +29,12 @@
     },
     "./package.json": "./package.json"
   },
+  "bin": {
+    "tracker": "./bin/tracker.mjs"
+  },
   "files": [
     "dist/",
+    "bin/",
     "README.md",
     "LICENSE"
   ],
@@ -39,7 +43,9 @@
     "node": ">=20.0.0"
   },
   "scripts": {
-    "build": "tsup",
+    "build": "tsup && node scripts/bundle-skills.mjs",
+    "bundle:skills": "node scripts/bundle-skills.mjs",
+    "smoke": "node scripts/smoke-build.mjs",
     "typecheck": "tsc --noEmit",
     "test": "jest",
     "test:integration": "TRACKER_INTEGRATION=1 jest --testPathPattern=integration.test",
