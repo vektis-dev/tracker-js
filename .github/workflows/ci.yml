@@ -30,8 +30,11 @@ jobs:
       - name: Run tests
         run: npm test
 
-      - name: Build (tsup)
+      - name: Build (tsup + skills bundle)
         run: npm run build
+
+      - name: Smoke build (verify dist artifacts + skills bundle)
+        run: npm run smoke
 
       - name: Bundle size check
         run: npm run size

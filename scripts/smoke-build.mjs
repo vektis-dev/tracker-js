@@ -1,7 +1,8 @@
 // Smoke test against the built ESM bundle. Verifies the dist artifacts load
-// in Node, expose the public API, and the errors sub-export resolves.
-// Runs after `npm run build`.
+// in Node, expose the public API, the errors sub-export resolves, and the
+// skills bundle is present with the expected files. Runs after `npm run build`.
 
+import { existsSync, readFileSync, statSync } from "node:fs";
 import * as vektis from "../dist/vektis-tracker.esm.js";
 import { ERROR_CATALOG } from "../dist/errors.js";
 
@@ -36,6 +37,31 @@ if (status.state !== "UNINITIALIZED") {
   process.exit(1);
 }
 
-console.log("smoke OK — public API + error catalog importable from dist");
+const requiredSkillFiles = [
+  "dist/skills/MANIFEST.json",
+  "dist/skills/vektis-install/SKILL.md",
+  "dist/skills/_shared/cli-auth.md",
+];
+for (const path of requiredSkillFiles) {
+  if (!existsSync(path) || statSync(path).size === 0) {
+    console.error(`smoke FAIL: ${path} missing or empty`);
+    process.exit(1);
+  }
+}
+
+let manifest;
+try {
+  manifest = JSON.parse(readFileSync("dist/skills/MANIFEST.json", "utf8"));
+} catch (err) {
+  console.error(`smoke FAIL: dist/skills/MANIFEST.json is not valid JSON: ${err.message}`);
+  process.exit(1);
+}
+if (!Array.isArray(manifest.skills) || manifest.skills.length === 0) {
+  console.error("smoke FAIL: MANIFEST.json has no skills");
+  process.exit(1);
+}
+
+console.log("smoke OK — public API + error catalog + skills bundle present in dist");
 console.log("  state:", status.state);
 console.log("  catalog codes:", Object.keys(ERROR_CATALOG).length);
+console.log("  skills:", manifest.skills.map((s) => s.name).join(", "));

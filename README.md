@@ -39,7 +39,24 @@ vektis.identify({ customer_id: "acct_A1", user_id: "user_123" });
 vektis.track("feature.used", { feature_id: "reports-dashboard" });
 ```
 
-**Other frameworks** (Vite, CRA, Nuxt, SvelteKit, vanilla CDN) — see the per-framework guides at [docs.vektis.io/integrations/tracker](https://docs.vektis.io/integrations/tracker) or run `claude /vektis-install` in your project for an automated setup.
+**Other frameworks** (Vite, CRA, Nuxt, SvelteKit, vanilla CDN) — see the per-framework guides at [docs.vektis.io/integrations/tracker](https://docs.vektis.io/integrations/tracker) or use the install skill (below) for an automated setup.
+
+## Installing the Claude Code skills
+
+VEKTIS ships a set of [Claude Code skills](https://docs.anthropic.com/en/docs/claude-code) (`vektis-install`, `vektis-troubleshoot`, `vektis-discover`, `vektis-instrument`) that automate end-to-end SDK setup, debug failed events, and instrument analytics calls in your codebase. To get them into your project's `.claude/skills/` directory:
+
+```bash
+npx @vektis-io/tracker install-skills
+```
+
+After install, run `claude /vektis-install` (or any other `/vektis-*` skill) from your project root.
+
+- **`--create`** — create `.claude/skills/` if it doesn't exist (default behavior is to skip when there's no `.claude/`, with a hint).
+- **`--force`** — overwrite skills you've edited locally (by default, the script preserves any skill file you've modified).
+
+Re-running is safe: the script tracks which files came from this package via a `.vektis-managed` marker and only updates them when this package ships new content. Works under npm, pnpm, yarn, and bun. Failure modes (no `.claude/`, permission denied, no project root found) all exit zero with a one-line hint.
+
+A Claude Code plugin marketplace install path is coming next; see the [Installing the skills page](https://docs.vektis.io/integrations/tracker/installing-skills) on the docs once it's live.
 
 ## Test vs Live keys
 
