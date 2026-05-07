@@ -2,6 +2,8 @@
 
 Browser JavaScript SDK for sending engagement events to VEKTIS. Zero runtime dependencies. <5KB gzipped.
 
+**Full documentation:** [docs.vektis.io/integrations/tracker](https://docs.vektis.io/integrations/tracker) — per-framework guides, CSP setup, reset-on-logout snippets, and a complete error catalog.
+
 [VEKTIS](https://vektis.io) helps software teams measure which engineering work actually delivers customer impact. `@vektis-io/tracker` is the browser-side half of the Impact Tracking data path. See also: [`@vektis-io/events-schema`](https://www.npmjs.com/package/@vektis-io/events-schema) — the shared schemas the SDK and the server validate against.
 
 ## Quick Start (Next.js)
