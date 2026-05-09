@@ -70,8 +70,14 @@ jobs:
         run: |
           git clone "https://x-access-token:${VANALYTICS_TOKEN}@github.com/vektis-dev/vanalytics.git" /tmp/vanalytics
           cd /tmp/vanalytics
+          # vanalytics is NOT a yarn workspace — root install only hydrates
+          # root deps (husky). Server deps (knex, tsx, express, ...) need a
+          # separate install in server/. Previously masked because the old
+          # `yarn dev:full` was docker-compose, which ran install inside
+          # each service container.
           yarn install --frozen-lockfile
           cd server
+          yarn install --frozen-lockfile
           # Migrate + seed against the services-block Postgres. Seed creates
           # the test API key (vek_test_pk_local_playground) + test org used by
           # the integration tests below — without it, every request 401s.
