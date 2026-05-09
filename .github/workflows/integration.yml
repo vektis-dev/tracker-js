@@ -3,15 +3,17 @@
 # because vanalytics setup takes ~30s and the contract test (in ci.yml) catches
 # schema drift earlier.
 #
-# NOTE: push-to-main trigger temporarily disabled per VEK-401. The vanalytics
-# clone step has no auth for the private repo and fails on every run. Trigger
-# will be restored once VANALYTICS_CLONE_TOKEN is wired up.
-# https://linear.app/vektis/issue/VEK-401
+# Cross-repo auth: the vanalytics clone uses a short-lived installation token
+# minted by the `vektis-ci-vanalytics-clone` GitHub App (org-owned, scoped
+# Contents:Read on vanalytics only). App credentials are stored as repo
+# secrets VANALYTICS_APP_ID and VANALYTICS_APP_PRIVATE_KEY. See VEK-401.
 
 name: Integration
 
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
 
 jobs:
   integration-test:
@@ -49,14 +51,24 @@ jobs:
 
       - run: npm ci
 
+      - name: Mint vanalytics access token
+        id: vanalytics-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.VANALYTICS_APP_ID }}
+          private-key: ${{ secrets.VANALYTICS_APP_PRIVATE_KEY }}
+          owner: vektis-dev
+          repositories: vanalytics
+
       - name: Boot vanalytics
         env:
           DATABASE_URL: postgresql://vanalytics:vanalytics@localhost:5432/vanalytics
           REDIS_URL: redis://localhost:6379
           ANALYTICS_INTERNAL_SECRET: ci-internal-secret-do-not-use-in-prod
           PORT: '3333'
+          VANALYTICS_TOKEN: ${{ steps.vanalytics-token.outputs.token }}
         run: |
-          git clone https://github.com/vektis-dev/vanalytics.git /tmp/vanalytics
+          git clone "https://x-access-token:${VANALYTICS_TOKEN}@github.com/vektis-dev/vanalytics.git" /tmp/vanalytics
           cd /tmp/vanalytics
           yarn install --frozen-lockfile
           cd server
