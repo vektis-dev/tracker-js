@@ -72,8 +72,14 @@ jobs:
           cd /tmp/vanalytics
           yarn install --frozen-lockfile
           cd server
-          yarn db:migrate && yarn db:seed
-          yarn dev:full &
+          # Migrate + seed against the services-block Postgres. Seed creates
+          # the test API key (vek_test_pk_local_playground) + test org used by
+          # the integration tests below — without it, every request 401s.
+          yarn db:migrate
+          yarn knex seed:run
+          # Run the API directly (yarn dev = nodemon → tsx ./src/index.ts,
+          # binds to PORT=3333). Backgrounded; survives into the next step.
+          yarn dev &
           for i in {1..30}; do
             if curl -sf http://localhost:3333/api/v1/health > /dev/null; then
               echo "vanalytics ready"
@@ -81,6 +87,12 @@ jobs:
             fi
             sleep 1
           done
+          # Hard-fail if vanalytics never came up. Without this the loop exits
+          # cleanly even when nothing is listening, masking boot failures as
+          # downstream test failures (see VEK-401 first end-to-end run for an
+          # example of this misdirection).
+          curl -sf http://localhost:3333/api/v1/health > /dev/null \
+            || { echo "::error::vanalytics did not become ready within 30s — boot failed silently"; exit 1; }
 
       - name: Run integration tests
         env:
