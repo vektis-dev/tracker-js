@@ -50,8 +50,9 @@ jobs:
           node-version: '22.x'
           cache: 'npm'
 
-      - run: npm install -g npm@latest
-
+      # Note: intentionally NOT running `npm install -g npm@latest` here.
+      # The npm bundled with Node 22.22.2 is broken on global self-upgrade
+      # (Cannot find module 'promise-retry'), but works fine for `npm ci`.
       - run: npm ci
 
       - name: Mint vanalytics access token
