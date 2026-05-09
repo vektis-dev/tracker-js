@@ -2,13 +2,16 @@
 # 18 + Redis 7) on a dispatched run or a push to main. Skipped on every PR
 # because vanalytics setup takes ~30s and the contract test (in ci.yml) catches
 # schema drift earlier.
+#
+# NOTE: push-to-main trigger temporarily disabled per VEK-401. The vanalytics
+# clone step has no auth for the private repo and fails on every run. Trigger
+# will be restored once VANALYTICS_CLONE_TOKEN is wired up.
+# https://linear.app/vektis/issue/VEK-401
 
 name: Integration
 
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
 
 jobs:
   integration-test:
