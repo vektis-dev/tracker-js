@@ -41,6 +41,51 @@ describe("validate.validateProperties", () => {
     expect(res.ok).toBe(false);
     expect(res.reason).toContain("8192 bytes");
   });
+
+  test("rejects a DOM node value before JSON.stringify is called", () => {
+    const stringifySpy = jest.spyOn(JSON, "stringify");
+    const res = validateProperties({ target: document.body as never });
+    expect(res.ok).toBe(false);
+    expect(res.reason).toContain("DOM node");
+    // The bail-early ordering: stringify must NOT have been called.
+    expect(stringifySpy).not.toHaveBeenCalled();
+    stringifySpy.mockRestore();
+  });
+
+  test("rejects a function value", () => {
+    const res = validateProperties({ cb: (() => 1) as never });
+    expect(res.ok).toBe(false);
+    expect(res.reason).toContain("function");
+  });
+
+  test("rejects an array value", () => {
+    const res = validateProperties({ items: [1, 2, 3] as never });
+    expect(res.ok).toBe(false);
+    expect(res.reason).toContain("array");
+  });
+
+  test("rejects a nested object value", () => {
+    const res = validateProperties({ obj: { nested: true } as never });
+    expect(res.ok).toBe(false);
+    expect(res.reason).toContain("object");
+  });
+
+  test("rejects a null value", () => {
+    const res = validateProperties({ x: null as never });
+    expect(res.ok).toBe(false);
+    expect(res.reason).toContain("null");
+  });
+
+  test("rejects > 50 keys without calling JSON.stringify on the bag", () => {
+    const stringifySpy = jest.spyOn(JSON, "stringify");
+    const props: Record<string, number> = {};
+    for (let i = 0; i < 51; i++) props[`k${i}`] = i;
+    const res = validateProperties(props);
+    expect(res.ok).toBe(false);
+    // Cheap key-count check beats the byte-size check for this case.
+    expect(stringifySpy).not.toHaveBeenCalled();
+    stringifySpy.mockRestore();
+  });
 });
 
 describe("validate.debugValidateProps", () => {

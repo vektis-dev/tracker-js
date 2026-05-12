@@ -2,6 +2,7 @@
 // pre-init queue (so identify/track called before init are replayed), and the
 // page-unload listeners that drive sendBeacon flush.
 
+import { tryAutoInit } from "./auto-init.js";
 import { MAX_PRE_INIT_QUEUE } from "./constants.js";
 import { logFromCatalog } from "./errors.js";
 import { Tracker } from "./tracker.js";
@@ -124,3 +125,9 @@ export function _resetForTests(): void {
 }
 
 export type { VektisConfig, VektisIdentity, TrackData, VektisStatus, EventType };
+
+// Script-tag auto-init. Module-evaluation side effect: when this bundle is
+// loaded via <script src="..."> with data-vektis-key, init() + (optionally)
+// identify() are called automatically. For ESM consumers, document.currentScript
+// is null and this is a silent no-op — they still call init() themselves.
+tryAutoInit(init, identify);

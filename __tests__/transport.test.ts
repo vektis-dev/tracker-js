@@ -1,8 +1,7 @@
 import {
   sendViaFetch,
   sendViaBeacon,
-  prewarmOptions,
-  _resetCspHintForTests,
+  sendViaKeepaliveFetch,
 } from "../src/transport";
 import type { TrackEventsPayload } from "../src/types";
 
@@ -34,7 +33,6 @@ function mockResponse(status: number, headers: Record<string, string> = {}): Res
 }
 
 beforeEach(() => {
-  _resetCspHintForTests();
   jest.spyOn(console, "warn").mockImplementation(() => undefined);
   jest.spyOn(console, "error").mockImplementation(() => undefined);
 });
@@ -119,14 +117,15 @@ describe("transport.sendViaFetch", () => {
     expect((console.warn as jest.Mock).mock.calls.some((c) => String(c[0]).includes("VEK_TRK_NETWORK_ERROR"))).toBe(true);
   });
 
-  test("production-mode CSP hint logs once per page-load", async () => {
+  test("production-mode stays silent on network errors (no host-app console spam)", async () => {
     const fetchFn = jest.fn().mockRejectedValue(new TypeError("Failed to fetch"));
     await sendViaFetch(PAYLOAD, { ...OPTS, debug: false, fetchFn: fetchFn as any });
     await sendViaFetch(PAYLOAD, { ...OPTS, debug: false, fetchFn: fetchFn as any });
-    const errorCalls = (console.error as jest.Mock).mock.calls.filter((c) =>
-      String(c[0]).includes("VEK_TRK_NETWORK_ERROR")
-    );
-    expect(errorCalls.length).toBe(1);
+    const networkLogs = [
+      ...(console.warn as jest.Mock).mock.calls,
+      ...(console.error as jest.Mock).mock.calls,
+    ].filter((c) => String(c[0]).includes("VEK_TRK_NETWORK_ERROR"));
+    expect(networkLogs.length).toBe(0);
   });
 });
 
@@ -147,46 +146,70 @@ describe("transport.sendViaBeacon", () => {
     }
   });
 
-  test("uses ?key= query param and JSON Blob body", () => {
+  test("puts api key in JSON body, not URL", () => {
     const beacon = jest.fn().mockReturnValue(true);
     Object.defineProperty(navigator, "sendBeacon", {
       value: beacon,
       configurable: true,
     });
-    const ok = sendViaBeacon(PAYLOAD, OPTS);
-    expect(ok).toBe(true);
-    expect(beacon).toHaveBeenCalledTimes(1);
-    const [url, body] = beacon.mock.calls[0];
-    expect(url).toContain("?key=vk_test_abc");
-    expect(body).toBeInstanceOf(Blob);
-    expect((body as Blob).type).toBe("application/json");
+    // Capture the body string passed to the Blob constructor (jsdom's Blob
+    // doesn't expose .text() reliably).
+    const originalBlob = global.Blob;
+    let capturedBody: string | null = null;
+    let capturedType: string | null = null;
+    (global as any).Blob = function (parts: unknown[], options: { type?: string }) {
+      capturedBody = String(parts[0]);
+      capturedType = options?.type ?? null;
+      return new originalBlob(parts as BlobPart[], options);
+    };
+    try {
+      const ok = sendViaBeacon(PAYLOAD, OPTS);
+      expect(ok).toBe(true);
+      expect(beacon).toHaveBeenCalledTimes(1);
+      const [url] = beacon.mock.calls[0];
+      expect(url).toBe(OPTS.endpoint);
+      expect(url).not.toContain("?key=");
+      expect(capturedType).toBe("application/json");
+      const parsed = JSON.parse(capturedBody!);
+      expect(parsed.key).toBe("vk_test_abc");
+      expect(parsed.events).toEqual(PAYLOAD.events);
+    } finally {
+      (global as any).Blob = originalBlob;
+    }
   });
 });
 
-describe("transport.prewarmOptions", () => {
-  test("fires fetch with method OPTIONS, ignores success", async () => {
-    const fetchFn = jest.fn().mockResolvedValue(mockResponse(204));
-    await prewarmOptions({ ...OPTS, fetchFn: fetchFn as any });
-    expect(fetchFn).toHaveBeenCalledTimes(1);
-    const [, init] = fetchFn.mock.calls[0];
-    expect(init.method).toBe("OPTIONS");
-    expect(init.mode).toBe("cors");
+describe("transport.sendViaKeepaliveFetch", () => {
+  test("fires fetch with keepalive: true and key in body", () => {
+    const fetchSpy = jest.fn().mockResolvedValue(mockResponse(202));
+    (global as any).fetch = fetchSpy;
+    sendViaKeepaliveFetch(PAYLOAD, OPTS);
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    const [url, init] = fetchSpy.mock.calls[0];
+    expect(url).toBe(OPTS.endpoint);
+    expect(init.method).toBe("POST");
+    expect(init.keepalive).toBe(true);
+    expect(init.headers["X-Vektis-SDK"]).toBe("js/1.0.0");
+    expect(init.headers["Content-Type"]).toBe("application/json");
+    const parsed = JSON.parse(init.body);
+    expect(parsed.key).toBe("vk_test_abc");
+    expect(parsed.events).toEqual(PAYLOAD.events);
   });
 
-  test("failure logs only in debug mode", async () => {
-    const fetchFn = jest.fn().mockRejectedValue(new Error("net"));
-    await prewarmOptions({ ...OPTS, debug: false, fetchFn: fetchFn as any });
-    expect(
-      (console.warn as jest.Mock).mock.calls.some((c) =>
-        String(c[0]).includes("VEK_TRK_PREWARM_FAILED")
-      )
-    ).toBe(false);
+  test("swallows fetch rejection (fire-and-forget)", () => {
+    const fetchSpy = jest.fn().mockRejectedValue(new Error("network down"));
+    (global as any).fetch = fetchSpy;
+    // Must not throw synchronously
+    expect(() => sendViaKeepaliveFetch(PAYLOAD, OPTS)).not.toThrow();
+  });
 
-    await prewarmOptions({ ...OPTS, debug: true, fetchFn: fetchFn as any });
-    expect(
-      (console.warn as jest.Mock).mock.calls.some((c) =>
-        String(c[0]).includes("VEK_TRK_PREWARM_FAILED")
-      )
-    ).toBe(true);
+  test("no-op when fetch is undefined", () => {
+    const originalFetch = (global as any).fetch;
+    (global as any).fetch = undefined;
+    try {
+      expect(() => sendViaKeepaliveFetch(PAYLOAD, OPTS)).not.toThrow();
+    } finally {
+      (global as any).fetch = originalFetch;
+    }
   });
 });

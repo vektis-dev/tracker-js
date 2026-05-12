@@ -1,5 +1,4 @@
 import { Tracker } from "../src/tracker";
-import { _resetCspHintForTests } from "../src/transport";
 
 function mockResponse(status: number, headers: Record<string, string> = {}): Response {
   return {
@@ -13,7 +12,6 @@ function makeFetch(status: number = 202) {
 }
 
 beforeEach(() => {
-  _resetCspHintForTests();
   jest.spyOn(console, "warn").mockImplementation(() => undefined);
   jest.spyOn(console, "error").mockImplementation(() => undefined);
 });
@@ -45,29 +43,49 @@ describe("tracker.init / state machine", () => {
     expect(() => t.init({} as any)).toThrow(/apiKey/);
   });
 
-  test("auto session.active fires on init by default", async () => {
+  test("non-publishable key warns but proceeds when allowFullScopeKey defaults true", () => {
+    const t = new Tracker({ fetchFn: makeFetch() as any });
+    t.init({ apiKey: "vk_live_abc" });
+    expect(t.getStatus().state).toBe("READY");
+    expect(
+      (console.warn as jest.Mock).mock.calls.some((c) =>
+        String(c[0]).includes("VEK_TRK_NON_PUBLISHABLE_KEY")
+      )
+    ).toBe(true);
+  });
+
+  test("non-publishable key is hard-refused when allowFullScopeKey is false", () => {
+    const t = new Tracker({ fetchFn: makeFetch() as any });
+    t.init({ apiKey: "vk_live_abc", allowFullScopeKey: false });
+    expect(t.getStatus().state).toBe("UNINITIALIZED");
+    expect(
+      (console.error as jest.Mock).mock.calls.some((c) =>
+        String(c[0]).includes("VEK_TRK_NON_PUBLISHABLE_KEY")
+      )
+    ).toBe(true);
+  });
+
+  test("publishable key (vk_pub_) does not emit the non-publishable warning", () => {
+    const t = new Tracker({ fetchFn: makeFetch() as any });
+    t.init({ apiKey: "vk_pub_prd_abc" });
+    expect(t.getStatus().state).toBe("READY");
+    expect(
+      (console.warn as jest.Mock).mock.calls.some((c) =>
+        String(c[0]).includes("VEK_TRK_NON_PUBLISHABLE_KEY")
+      )
+    ).toBe(false);
+  });
+
+  test("init without a follow-up identify produces zero enqueued events", async () => {
     const fetchFn = makeFetch();
     const t = new Tracker({ fetchFn: fetchFn as any });
     t.init({ apiKey: "vk_test_abc" });
-    t.identify({ customer_id: "cust_a" });
+    // No identify(), no track(). With the auto-fire removed, the queue must
+    // be empty and the fetch path must NOT have been touched.
     await t.flush();
-    // session.active first, customer.identified second
-    const allEvents = fetchFn.mock.calls
-      .filter((c) => (c[1] as any).method === "POST")
-      .flatMap((c) => JSON.parse((c[1] as any).body).events);
-    expect(allEvents.some((e: any) => e.event_type === "session.active")).toBe(true);
-  });
-
-  test("autoSessionActive: false suppresses the auto event", async () => {
-    const fetchFn = makeFetch();
-    const t = new Tracker({ fetchFn: fetchFn as any });
-    t.init({ apiKey: "vk_test_abc", autoSessionActive: false });
-    t.identify({ customer_id: "cust_a" });
-    await t.flush();
-    const allEvents = fetchFn.mock.calls
-      .filter((c) => (c[1] as any).method === "POST")
-      .flatMap((c) => JSON.parse((c[1] as any).body).events);
-    expect(allEvents.some((e: any) => e.event_type === "session.active")).toBe(false);
+    expect(t.getStatus().queueLength).toBe(0);
+    const postCalls = fetchFn.mock.calls.filter((c) => (c[1] as any).method === "POST");
+    expect(postCalls.length).toBe(0);
   });
 
   test("reset returns state to UNINITIALIZED and clears identity", () => {
@@ -115,7 +133,7 @@ describe("tracker.identify", () => {
   test("identify sets customer_id + user_id and enqueues customer.identified", async () => {
     const fetchFn = makeFetch();
     const t = new Tracker({ fetchFn: fetchFn as any });
-    t.init({ apiKey: "vk_test_abc", autoSessionActive: false });
+    t.init({ apiKey: "vk_test_abc" });
     t.identify({ customer_id: "cust_a", user_id: "u1" });
     expect(t.getStatus().identityCustomerId).toBe("cust_a");
     expect(t.getStatus().identityUserId).toBe("u1");
@@ -137,7 +155,7 @@ describe("tracker.track / customer_id injection", () => {
   test("track injects customer_id from identify context", async () => {
     const fetchFn = makeFetch();
     const t = new Tracker({ fetchFn: fetchFn as any });
-    t.init({ apiKey: "vk_test_abc", autoSessionActive: false });
+    t.init({ apiKey: "vk_test_abc" });
     t.identify({ customer_id: "cust_xyz" });
     t.track("feature.used", { feature_id: "f1" });
     await t.flush();
@@ -156,7 +174,7 @@ describe("tracker.track / customer_id injection", () => {
   test("track before identify drops with MISSING_IDENTITY warn", () => {
     const fetchFn = makeFetch();
     const t = new Tracker({ fetchFn: fetchFn as any });
-    t.init({ apiKey: "vk_test_abc", autoSessionActive: false });
+    t.init({ apiKey: "vk_test_abc" });
     t.track("feature.used", { feature_id: "f1" });
     expect(
       (console.warn as jest.Mock).mock.calls.some((c) =>
@@ -168,7 +186,7 @@ describe("tracker.track / customer_id injection", () => {
 
   test("debug-mode warns when feature.* event missing feature_id", () => {
     const t = new Tracker({ fetchFn: makeFetch() as any });
-    t.init({ apiKey: "vk_test_abc", debug: true, autoSessionActive: false });
+    t.init({ apiKey: "vk_test_abc", debug: true });
     t.identify({ customer_id: "cust_a" });
     t.track("feature.used", {});
     expect(
@@ -246,7 +264,7 @@ describe("tracker.getStatus", () => {
       identityCustomerId: null,
       identityUserId: null,
     });
-    t.init({ apiKey: "vk_test_abc", autoSessionActive: false });
+    t.init({ apiKey: "vk_test_abc" });
     t.identify({ customer_id: "cust_x", user_id: "u_y" });
     const s = t.getStatus();
     expect(s.state).toBe("READY");
@@ -259,7 +277,7 @@ describe("tracker.getStatus", () => {
     const t = new Tracker({
       fetchFn: jest.fn().mockReturnValue(new Promise(() => undefined)) as any,
     });
-    t.init({ apiKey: "vk_test_abc", autoSessionActive: false });
+    t.init({ apiKey: "vk_test_abc" });
     t.identify({ customer_id: "cust_a" });
     // Identify fires customer.identified; track fires another. flush threshold = 10.
     expect(t.getStatus().queueLength).toBe(1);
@@ -278,7 +296,7 @@ describe("tracker.flushBeacon (unload path)", () => {
     const t = new Tracker({
       fetchFn: jest.fn().mockReturnValue(new Promise(() => undefined)) as any,
     });
-    t.init({ apiKey: "vk_test_abc", autoSessionActive: false });
+    t.init({ apiKey: "vk_test_abc" });
     t.identify({ customer_id: "cust_a" });
     t.track("feature.used", { feature_id: "f1" });
     expect(t.getStatus().queueLength).toBeGreaterThan(0);
@@ -290,8 +308,56 @@ describe("tracker.flushBeacon (unload path)", () => {
 
   test("returns false when queue is empty", () => {
     const t = new Tracker({ fetchFn: makeFetch() as any });
-    t.init({ apiKey: "vk_test_abc", autoSessionActive: false });
+    t.init({ apiKey: "vk_test_abc" });
     // queue should be empty after init w/o auto session
     expect(t.flushBeacon()).toBe(false);
+  });
+
+  test("falls back to keepalive fetch when sendBeacon returns false", () => {
+    const beacon = jest.fn().mockReturnValue(false);
+    Object.defineProperty(navigator, "sendBeacon", {
+      value: beacon,
+      configurable: true,
+    });
+    const keepaliveFetch = jest.fn().mockResolvedValue({ status: 202 } as Response);
+    (global as any).fetch = keepaliveFetch;
+
+    const t = new Tracker({
+      // separate fetchFn (passed to transport for fetch path) — keepalive
+      // fetch uses the global, not the injected fetchFn
+      fetchFn: jest.fn().mockReturnValue(new Promise(() => undefined)) as any,
+    });
+    t.init({ apiKey: "vk_test_abc" });
+    t.identify({ customer_id: "cust_a" });
+    t.track("feature.used", { feature_id: "f1" });
+
+    const sent = t.flushBeacon();
+    expect(sent).toBe(true);
+    expect(beacon).toHaveBeenCalledTimes(1);
+    expect(keepaliveFetch).toHaveBeenCalledTimes(1);
+    const [, init] = keepaliveFetch.mock.calls[0];
+    expect(init.keepalive).toBe(true);
+  });
+
+  test("does NOT fire keepalive fetch when sendBeacon succeeds (no double-send)", () => {
+    const beacon = jest.fn().mockReturnValue(true);
+    Object.defineProperty(navigator, "sendBeacon", {
+      value: beacon,
+      configurable: true,
+    });
+    const keepaliveFetch = jest.fn().mockResolvedValue({ status: 202 } as Response);
+    (global as any).fetch = keepaliveFetch;
+
+    const t = new Tracker({
+      fetchFn: jest.fn().mockReturnValue(new Promise(() => undefined)) as any,
+    });
+    t.init({ apiKey: "vk_test_abc" });
+    t.identify({ customer_id: "cust_a" });
+    t.track("feature.used", { feature_id: "f1" });
+
+    const sent = t.flushBeacon();
+    expect(sent).toBe(true);
+    expect(beacon).toHaveBeenCalledTimes(1);
+    expect(keepaliveFetch).not.toHaveBeenCalled();
   });
 });

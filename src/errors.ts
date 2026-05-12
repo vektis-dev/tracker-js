@@ -16,8 +16,8 @@ export type ErrorCode =
   | "VEK_TRK_PROPS_CAP_EXCEEDED"
   | "VEK_TRK_TEST_KEY_NON_LOCAL"
   | "VEK_TRK_LIVE_KEY_LOCAL"
-  | "VEK_TRK_PREWARM_FAILED"
-  | "VEK_TRK_PRE_INIT_QUEUE_OVERFLOW";
+  | "VEK_TRK_PRE_INIT_QUEUE_OVERFLOW"
+  | "VEK_TRK_NON_PUBLISHABLE_KEY";
 
 export interface VektisErrorEntry {
   code: ErrorCode;
@@ -172,18 +172,6 @@ export const ERROR_CATALOG: Readonly<Record<ErrorCode, VektisErrorEntry>> = Obje
       "Forgot to override the env var locally",
     ],
   },
-  VEK_TRK_PREWARM_FAILED: {
-    code: "VEK_TRK_PREWARM_FAILED",
-    message: "OPTIONS preflight prewarm failed. sendBeacon may degrade on first unload.",
-    actionItem:
-      "Verify CSP and that the endpoint is reachable. Fetch path still works; only first-session unload events are at risk.",
-    docsAnchor: `${DOCS_BASE}#prewarm-failed`,
-    hypotheses: [
-      "Endpoint not reachable yet (DNS, proxy)",
-      "CSP blocks OPTIONS",
-      "Network glitch at init time",
-    ],
-  },
   VEK_TRK_PRE_INIT_QUEUE_OVERFLOW: {
     code: "VEK_TRK_PRE_INIT_QUEUE_OVERFLOW",
     message: "Pre-init queue exceeded 1000 entries. Oldest events dropped.",
@@ -192,6 +180,19 @@ export const ERROR_CATALOG: Readonly<Record<ErrorCode, VektisErrorEntry>> = Obje
     hypotheses: [
       "Tracking events fired in a long pre-init bootstrap path",
       "init() never called (orphan SDK)",
+    ],
+  },
+  VEK_TRK_NON_PUBLISHABLE_KEY: {
+    code: "VEK_TRK_NON_PUBLISHABLE_KEY",
+    message:
+      "Browser SDK initialized with a non-publishable API key. Use a vk_pub_* key for browser code.",
+    actionItem:
+      "Generate a publishable key at vektis.io/settings/api-keys (scope: publishable) and call vektis.init() with that key.",
+    docsAnchor: `${DOCS_BASE}#non-publishable-key`,
+    hypotheses: [
+      "Server-side key (vk_test_/vk_live_) accidentally shipped to the browser",
+      "Publishable key not yet generated for this org",
+      "Env var wired to the wrong key type",
     ],
   },
 });
