@@ -14,7 +14,14 @@ export interface VektisConfig {
   endpoint?: string;
   flushIntervalMs?: number;
   flushThreshold?: number;
-  autoSessionActive?: boolean;
+  /**
+   * Whether to allow non-publishable (`vk_*` without the `pub_` segment) keys in the
+   * browser SDK. Default `true` in the 1.2.x line — a non-publishable key triggers a
+   * `VEK_TRK_NON_PUBLISHABLE_KEY` warning and the SDK proceeds. Set to `false` to make
+   * the SDK refuse to initialize unless the key starts with `vk_pub_`. The default
+   * is expected to flip to `false` in a future major.
+   */
+  allowFullScopeKey?: boolean;
   debug?: boolean;
 }
 
@@ -53,4 +60,8 @@ export interface TrackingEvent {
 
 export interface TrackEventsPayload {
   events: TrackingEvent[];
+  // Publishable API key. Used on the sendBeacon path so the key doesn't end up
+  // in browser history / server access logs as a URL query param. Mirrors the
+  // optional field added to @vektis-io/events-schema in 1.1.0.
+  key?: string;
 }

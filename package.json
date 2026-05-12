@@ -1,6 +1,6 @@
 {
   "name": "@vektis-io/tracker",
-  "version": "1.1.1",
+  "version": "1.2.0",
   "description": "Browser JavaScript SDK for sending engagement events to VEKTIS. Zero runtime dependencies, <5KB gzipped.",
   "license": "MIT",
   "author": "VEKTIS",
@@ -55,7 +55,7 @@
   "devDependencies": {
     "@size-limit/preset-small-lib": "^11.1.6",
     "@types/jest": "^29.5.12",
-    "@vektis-io/events-schema": "^1.0.0",
+    "@vektis-io/events-schema": "^1.1.0",
     "jest": "^29.7.0",
     "jest-environment-jsdom": "^29.7.0",
     "size-limit": "^11.1.6",

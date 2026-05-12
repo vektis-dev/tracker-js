@@ -8,3 +8,5 @@ coverage/
 *.log
 .vscode/
 .idea/
+.notes
+vektis-io-tracker-*

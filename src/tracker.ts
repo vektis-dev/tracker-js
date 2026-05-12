@@ -11,9 +11,9 @@ import {
 import { logFromCatalog } from "./errors.js";
 import { EventQueue, type FlushSender } from "./queue.js";
 import {
-  prewarmOptions,
   sendViaBeacon,
   sendViaFetch,
+  sendViaKeepaliveFetch,
   type TransportOptions,
 } from "./transport.js";
 import type {
@@ -56,12 +56,23 @@ export class Tracker {
     if (!config?.apiKey || typeof config.apiKey !== "string") {
       throw new Error("Vektis SDK: init() requires { apiKey: string }");
     }
+    const allowFullScopeKey = config.allowFullScopeKey ?? true;
+    if (!config.apiKey.startsWith("vk_pub_")) {
+      if (!allowFullScopeKey) {
+        // Hard refusal: do not initialize. Caller can fix the key and try again.
+        logFromCatalog("VEK_TRK_NON_PUBLISHABLE_KEY", "error");
+        return;
+      }
+      // Soft warning: proceed, but the customer should rotate to a publishable
+      // key. Always emitted (not gated by debug) so the leak gets visibility.
+      logFromCatalog("VEK_TRK_NON_PUBLISHABLE_KEY", "warn");
+    }
     this.config = {
       apiKey: config.apiKey,
       endpoint: config.endpoint ?? DEFAULT_ENDPOINT,
       flushIntervalMs: config.flushIntervalMs ?? FLUSH_INTERVAL_MS,
       flushThreshold: config.flushThreshold ?? FLUSH_THRESHOLD,
-      autoSessionActive: config.autoSessionActive ?? true,
+      allowFullScopeKey,
       debug: config.debug ?? false,
     };
 
@@ -94,14 +105,6 @@ export class Tracker {
     });
 
     this.state = "READY";
-
-    // Fire-and-forget OPTIONS prewarm so the first sendBeacon-on-unload doesn't
-    // miss the CORS preflight cache.
-    void prewarmOptions(transportOpts);
-
-    if (this.config.autoSessionActive) {
-      this.enqueueEvent("session.active");
-    }
   }
 
   identify(id: VektisIdentity): void {
@@ -148,21 +151,24 @@ export class Tracker {
   }
 
   /**
-   * Synchronously drain the queue and emit it via sendBeacon. Used by the
-   * page-unload listeners. Returns true if at least one beacon was sent.
+   * Synchronously drain the queue and emit it on the unload path. Tries sendBeacon
+   * first; if the browser rejects the beacon (over-size, throttled, unavailable)
+   * falls back to fetch with `keepalive: true` so the unload events aren't silently
+   * lost. Returns true if either path accepted the payload.
    */
   flushBeacon(): boolean {
     if (!this.queue || !this.config) return false;
     const events = this.queue.drain();
     if (events.length === 0) return false;
-    return sendViaBeacon(
-      { events },
-      {
-        endpoint: this.config.endpoint,
-        apiKey: this.config.apiKey,
-        debug: this.config.debug,
-      }
-    );
+    const transportOpts = {
+      endpoint: this.config.endpoint,
+      apiKey: this.config.apiKey,
+      debug: this.config.debug,
+    };
+    const beaconAccepted = sendViaBeacon({ events }, transportOpts);
+    if (beaconAccepted) return true;
+    sendViaKeepaliveFetch({ events }, transportOpts);
+    return true;
   }
 
   reset(): void {
@@ -189,22 +195,19 @@ export class Tracker {
 
   private enqueueEvent(eventType: EventType, data: TrackData = {}): void {
     if (!this.queue) return;
-    if (!this.identity && eventType !== "session.active") {
-      // session.active enqueued at init may run before identify; skip the
-      // identity check ONLY for session.active. Other events require identity.
+    if (!this.identity) {
+      // Every event requires an identity. Callers (track, identify) gate this
+      // before us; the check is defensive.
       logFromCatalog("VEK_TRK_MISSING_IDENTITY", "warn", { eventType });
       return;
     }
     const event: TrackingEvent = {
       event_id: uuidv4(),
       event_type: eventType,
-      // identity may be null for session.active at init; server requires
-      // customer_id, so we use a placeholder that the customer's identify()
-      // call will overwrite for subsequent events.
-      customer_id: this.identity?.customer_id ?? "anonymous",
+      customer_id: this.identity.customer_id,
       timestamp: new Date().toISOString(),
     };
-    if (this.identity?.user_id) event.user_id = this.identity.user_id;
+    if (this.identity.user_id) event.user_id = this.identity.user_id;
     if (data.feature_id) event.feature_id = data.feature_id;
     if (data.action) event.action = data.action;
     if (data.properties) event.properties = data.properties;

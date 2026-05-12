@@ -15,8 +15,8 @@ describe("errors catalog", () => {
       "VEK_TRK_PROPS_CAP_EXCEEDED",
       "VEK_TRK_TEST_KEY_NON_LOCAL",
       "VEK_TRK_LIVE_KEY_LOCAL",
-      "VEK_TRK_PREWARM_FAILED",
       "VEK_TRK_PRE_INIT_QUEUE_OVERFLOW",
+      "VEK_TRK_NON_PUBLISHABLE_KEY",
     ];
     for (const code of codes) {
       const entry = ERROR_CATALOG[code];

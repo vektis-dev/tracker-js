@@ -1,5 +1,4 @@
 import * as vektis from "../src/index";
-import { _resetCspHintForTests } from "../src/transport";
 
 function mockResponse(status: number = 202): Response {
   return {
@@ -10,7 +9,6 @@ function mockResponse(status: number = 202): Response {
 
 beforeEach(() => {
   vektis._resetForTests();
-  _resetCspHintForTests();
   jest.spyOn(console, "warn").mockImplementation(() => undefined);
   jest.spyOn(console, "error").mockImplementation(() => undefined);
   // Inject a default fetch via global so the singleton picks it up
@@ -48,7 +46,7 @@ describe("pre-init queue", () => {
     expect(vektis.getStatus().state).toBe("UNINITIALIZED");
     expect(vektis.getStatus().queueLength).toBe(1);
 
-    vektis.init({ apiKey: "vk_test_abc", autoSessionActive: false });
+    vektis.init({ apiKey: "vk_test_abc" });
     // After init, identity should be applied
     expect(vektis.getStatus().identityCustomerId).toBe("cust_a");
     expect(vektis.getStatus().identityUserId).toBe("u1");
@@ -61,7 +59,7 @@ describe("pre-init queue", () => {
     vektis.track("feature.used", { feature_id: "f2" });
     expect(vektis.getStatus().queueLength).toBe(3);
 
-    vektis.init({ apiKey: "vk_test_abc", autoSessionActive: false });
+    vektis.init({ apiKey: "vk_test_abc" });
     await vektis.flush();
 
     const fetchFn = (global as any).fetch as jest.Mock;
@@ -88,7 +86,7 @@ describe("pre-init queue", () => {
 
 describe("reset", () => {
   test("reset clears identity and pre-init queue, returns to UNINITIALIZED", async () => {
-    vektis.init({ apiKey: "vk_test_abc", autoSessionActive: false });
+    vektis.init({ apiKey: "vk_test_abc" });
     vektis.identify({ customer_id: "cust_a" });
     vektis.track("feature.used", { feature_id: "f1" });
     expect(vektis.getStatus().state).toBe("READY");
@@ -106,7 +104,7 @@ describe("page-unload listeners", () => {
       value: beacon,
       configurable: true,
     });
-    vektis.init({ apiKey: "vk_test_abc", autoSessionActive: false });
+    vektis.init({ apiKey: "vk_test_abc" });
     vektis.identify({ customer_id: "cust_a" });
     vektis.track("feature.used", { feature_id: "f1" });
 
@@ -126,7 +124,7 @@ describe("page-unload listeners", () => {
       value: beacon,
       configurable: true,
     });
-    vektis.init({ apiKey: "vk_test_abc", autoSessionActive: false });
+    vektis.init({ apiKey: "vk_test_abc" });
     vektis.identify({ customer_id: "cust_a" });
     vektis.track("feature.used", { feature_id: "f1" });
 
@@ -141,10 +139,10 @@ describe("page-unload listeners", () => {
       value: beacon,
       configurable: true,
     });
-    vektis.init({ apiKey: "vk_test_abc", autoSessionActive: false });
+    vektis.init({ apiKey: "vk_test_abc" });
     // Second init is a no-op (warns about INIT_TWICE) so the listener should
     // not double-attach.
-    vektis.init({ apiKey: "vk_test_xyz", autoSessionActive: false });
+    vektis.init({ apiKey: "vk_test_xyz" });
     vektis.identify({ customer_id: "cust_a" });
     vektis.track("feature.used", { feature_id: "f1" });
     window.dispatchEvent(new Event("pagehide"));

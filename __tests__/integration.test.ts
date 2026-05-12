@@ -37,7 +37,7 @@ describe("integration: tracker-js → local vanalytics", () => {
     vektis.init({
       apiKey: TEST_API_KEY,
       endpoint: `${VANALYTICS_BASE}/api/v1/events`,
-      autoSessionActive: false,
+      
     });
     const customerId = `cust_int_${Date.now()}`;
     vektis.identify({ customer_id: customerId, user_id: "u_int_test" });
@@ -69,7 +69,7 @@ describe("integration: tracker-js → local vanalytics", () => {
     vektis.init({
       apiKey: TEST_API_KEY,
       endpoint: `${VANALYTICS_BASE}/api/v1/events`,
-      autoSessionActive: false,
+      
     });
     vektis.identify({ customer_id: "cust_int_reset" });
     vektis.track("feature.used", { feature_id: "before_reset" });
@@ -82,7 +82,7 @@ describe("integration: tracker-js → local vanalytics", () => {
     vektis.init({
       apiKey: TEST_API_KEY,
       endpoint: `${VANALYTICS_BASE}/api/v1/events`,
-      autoSessionActive: false,
+      
     });
     // No identify yet
     const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => undefined);
@@ -97,7 +97,7 @@ describe("integration: tracker-js → local vanalytics", () => {
     vektis.init({
       apiKey: "vk_test_definitely_not_real_xxx",
       endpoint: `${VANALYTICS_BASE}/api/v1/events`,
-      autoSessionActive: false,
+      
     });
     vektis.identify({ customer_id: "cust_int_401" });
     vektis.track("feature.used", { feature_id: "should_401" });

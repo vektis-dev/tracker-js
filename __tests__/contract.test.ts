@@ -35,7 +35,7 @@ describe("contract: @vektis-io/events-schema", () => {
       return Promise.resolve(mockResponse());
     });
 
-    vektis.init({ apiKey: "vk_test_abc", autoSessionActive: false });
+    vektis.init({ apiKey: "vk_test_abc" });
     vektis.identify({ customer_id: "cust_contract" });
     vektis.track("feature.used", { feature_id: "f1" });
     vektis.track("feature.engagement", {
@@ -66,7 +66,7 @@ describe("contract: @vektis-io/events-schema", () => {
       return Promise.resolve(mockResponse());
     });
 
-    vektis.init({ apiKey: "vk_test_abc", autoSessionActive: false });
+    vektis.init({ apiKey: "vk_test_abc" });
     vektis.identify({ customer_id: "cust_a" });
     for (let i = 0; i < 5; i++) vektis.track("feature.used", { feature_id: `f${i}` });
     await vektis.flush();
@@ -88,7 +88,7 @@ describe("contract: @vektis-io/events-schema", () => {
       return Promise.resolve(mockResponse());
     });
 
-    vektis.init({ apiKey: "vk_test_abc", autoSessionActive: false });
+    vektis.init({ apiKey: "vk_test_abc" });
     vektis.identify({ customer_id: "cust_a" });
     vektis.track("feature.used", { feature_id: "f1" });
     await vektis.flush();
@@ -113,7 +113,7 @@ describe("contract: @vektis-io/events-schema", () => {
       return Promise.resolve(mockResponse());
     });
 
-    vektis.init({ apiKey: "vk_test_abc", autoSessionActive: false });
+    vektis.init({ apiKey: "vk_test_abc" });
     vektis.identify({ customer_id: "cust_a" });
     vektis.track("feature.used", { feature_id: "f1" });
     vektis.track("feature.engagement", { feature_id: "f1", action: "click" });

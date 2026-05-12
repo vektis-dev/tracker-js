@@ -24,14 +24,6 @@ export interface TransportOptions {
 const defaultSleep = (ms: number) =>
   new Promise<void>((resolve) => setTimeout(resolve, ms));
 
-// Module-scoped one-shot flag for the production-mode CSP/network-failure hint.
-// Reset between page loads naturally because module state resets per page.
-let productionCspHintEmitted = false;
-
-export function _resetCspHintForTests(): void {
-  productionCspHintEmitted = false;
-}
-
 function backoffDelay(attempt: number, retryAfterSeconds: number | null): number {
   if (retryAfterSeconds !== null && retryAfterSeconds > 0) {
     return Math.min(retryAfterSeconds * 1000, 60_000);
@@ -76,13 +68,11 @@ export async function sendViaFetch(
       });
     } catch (err) {
       lastStatus = null;
-      // Network-level failure (CSP block, offline, DNS, etc.). In debug mode log
-      // every failure; in production log only the FIRST one this page-load.
+      // Network-level failure (CSP block, offline, DNS, etc.). Logged in debug
+      // mode only — production stays quiet so flaky networks don't spam the
+      // host app's console.
       if (opts.debug) {
         logFromCatalog("VEK_TRK_NETWORK_ERROR", "warn", { error: String(err) });
-      } else if (!productionCspHintEmitted) {
-        productionCspHintEmitted = true;
-        logFromCatalog("VEK_TRK_NETWORK_ERROR", "error", { error: String(err) });
       }
       // Try again with backoff (no Retry-After since we never got headers).
       if (attempt < MAX_RETRIES) {
@@ -141,8 +131,9 @@ export async function sendViaFetch(
 }
 
 /**
- * Send a batch via sendBeacon — the page-unload path. API key goes in the
- * URL query param (header path doesn't survive sendBeacon's restricted modes).
+ * Send a batch via sendBeacon — the page-unload path. API key rides in the
+ * request body (sendBeacon doesn't support custom headers); the URL stays clean
+ * so the key never ends up in browser history / server access logs.
  * Returns whether the browser accepted the beacon for queuing; we cannot tell
  * whether the server actually received it.
  */
@@ -153,30 +144,35 @@ export function sendViaBeacon(
   if (typeof navigator === "undefined" || typeof navigator.sendBeacon !== "function") {
     return false;
   }
-  const url = `${opts.endpoint}?key=${encodeURIComponent(opts.apiKey)}`;
-  const blob = new Blob([JSON.stringify(payload)], { type: "application/json" });
-  return navigator.sendBeacon(url, blob);
+  const body = JSON.stringify({ ...payload, key: opts.apiKey });
+  const blob = new Blob([body], { type: "application/json" });
+  return navigator.sendBeacon(opts.endpoint, blob);
 }
 
 /**
- * Fire-and-forget OPTIONS prewarm at init time. Caches the CORS preflight so
- * the first sendBeacon-on-unload doesn't lose events to a preflight cache miss.
- * Returns void; failures log only in debug.
+ * Last-resort unload-path fallback. Used when sendBeacon returns false (over-size
+ * payload, browser-side beacon throttling, sendBeacon unavailable). Fire-and-forget
+ * fetch with `keepalive: true` — survives page unload up to the browser's keepalive
+ * cap (~64KB per request in Chromium). No retry, no error propagation.
  */
-export async function prewarmOptions(opts: TransportOptions): Promise<void> {
-  const fetchFn = opts.fetchFn ?? fetch;
+export function sendViaKeepaliveFetch(
+  payload: TrackEventsPayload,
+  opts: TransportOptions
+): void {
+  if (typeof fetch === "undefined") return;
+  const body = JSON.stringify({ ...payload, key: opts.apiKey });
   try {
-    await fetchFn(opts.endpoint, {
-      method: "OPTIONS",
-      mode: "cors",
+    void fetch(opts.endpoint, {
+      method: "POST",
+      keepalive: true,
       headers: {
-        "Access-Control-Request-Method": "POST",
-        "Access-Control-Request-Headers": "content-type,x-vektis-key,x-vektis-sdk",
+        "Content-Type": "application/json",
+        "X-Vektis-SDK": SDK_HEADER,
       },
-    });
-  } catch (err) {
-    if (opts.debug) {
-      logFromCatalog("VEK_TRK_PREWARM_FAILED", "warn", { error: String(err) });
-    }
+      body,
+    }).catch(() => undefined);
+  } catch {
+    // Some browsers throw synchronously when keepalive payload exceeds the cap.
+    // Nothing more we can do at unload; events are lost.
   }
 }
