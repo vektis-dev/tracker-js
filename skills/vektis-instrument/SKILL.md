@@ -7,7 +7,7 @@ user-invocable: true
 
 # vektis-instrument
 
-Consume `.vektis/discover-output.json` (produced by `vektis-discover`), batch-create matching Dev Items in vektis-app, and insert `vektis.track()` calls in the customer's source code. The customer never types a credential, never types a Dev Item field, and approves a single multi-file diff.
+Consume `.vektis/discover-output.json` (produced by `vektis-discover`), batch-create matching Dev Items in the Vektis dashboard, and insert `vektis.track()` calls in the customer's source code. The customer never types a credential, never types a Dev Item field, and approves a single multi-file diff.
 
 ## Hard constraints
 
@@ -62,28 +62,28 @@ This guards against the diff confirmation overlapping with unrelated edits the c
 
 ---
 
-## Step 3 — Authenticate via VEK-383
+## Step 3 — Authenticate
 
 Read `.claude/skills/_shared/cli-auth.md` and follow Steps A through F end-to-end.
 
 - Default: OAuth Device Flow.
 - If the customer invoked the skill with `--paste-token`, skip OAuth and go straight to the paste-token branch (Step D).
 
-After `_shared/cli-auth.md` completes, you have:
+After the authentication flow completes, you have:
 
 - `access_token` — the `vkcli_*` bearer in memory
 - `~/.vektis/credentials.json` — persisted with `{ token, organizationId, expiresAt }`
 - Confirmation: `Authenticated as <email> in <organizationName> org.`
 
-If `_shared/cli-auth.md` Step E surfaced "Ask your admin..." (role !== admin), the skill exits there. Do NOT proceed.
+If the authentication flow Step E surfaced "Ask your admin..." (role !== admin), the skill exits there. Do NOT proceed.
 
 ---
 
 ## Step 4 — Bulk-create Dev Items
 
-Translate each candidate from snake_case (discover-output) to camelCase (vektis-app DTO):
+Translate each candidate from snake_case (discover-output) to camelCase (Vektis API DTO):
 
-| discover-output | vektis-app DTO |
+| discover-output | Vektis API DTO |
 | --- | --- |
 | `feature_id` | `featureId` |
 | `value_type` | `valueType` |
@@ -139,7 +139,7 @@ The skipped list contains feature IDs that already had non-deleted dev items in 
 
 For every candidate where `featureId` is in `created` OR in `skipped` (already_exists), compute the set of `(file, line, role, valueType, metric_config)` tuples from `insertion_points[]`.
 
-Look up the literal `vektis.track()` call to insert per `INSERTION_RULES.md`:
+Look up the literal `vektis.track()` call to insert per the insertion rules reference:
 
 - `count` + role `action` → `vektis.track('feature.used', { feature_id })`
 - `percentage` + role `numerator_action` → `vektis.track('feature.used', { feature_id })`
@@ -213,7 +213,7 @@ On `Y`, run `gh pr create` with the suggested title. On `N`, exit. On `gh auth s
 
 ## Failure modes
 
-- **Auth fails or token expires mid-flow** — re-run `_shared/cli-auth.md` Step A. If the customer has been polling for 10+ minutes, offer `--paste-token` fallback.
+- **Auth fails or token expires mid-flow** — re-run Step A of the shared authentication flow. If the customer has been polling for 10+ minutes, offer `--paste-token` fallback.
 - **Bulk endpoint returns 4xx** — print the response body (it contains validation details). No files have been touched. Customer fixes the discover-output and re-runs.
 - **Bulk endpoint returns 5xx** — print the body, suggest re-running. The endpoint is best-effort idempotent, so a re-run resumes cleanly.
 - **All discover-output candidates already exist as dev items** — skill prints "All N candidates already exist; proceeding to instrumentation." and continues to Step 5 with the full candidate list.

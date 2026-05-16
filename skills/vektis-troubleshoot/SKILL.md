@@ -12,11 +12,11 @@ Diagnose `@vektis-io/tracker` SDK problems. The customer invokes this with eithe
 - an error code shown in the SDK's debug output (e.g. `claude /vektis-troubleshoot VEK_TRK_INVALID_API_KEY`), OR
 - a free-form symptom (e.g. `claude /vektis-troubleshoot "events not arriving"`).
 
-Both inputs are matched against the live `@vektis-io/tracker/errors` catalog at runtime — never hardcoded. The catalog is the single source of truth (per VEK-282); codes are SemVer-stable.
+Both inputs are matched against the live `@vektis-io/tracker/errors` catalog at runtime — never hardcoded. The catalog is the single source of truth; codes are SemVer-stable.
 
 ## Hard constraints
 
-- **Never hardcode error codes or messages.** Always load `ERROR_CATALOG` at runtime via the recipe in `_shared/sdk-error-catalog.md`.
+- **Never hardcode error codes or messages.** Always load `ERROR_CATALOG` at runtime via the recipe in the error-catalog reference.
 - **Never claim certainty.** Output is _ranked hypotheses_ with confidence-shaping language: "most likely", "possible", "less likely". The customer chooses what to investigate first.
 - **Never trigger external action.** This skill diagnoses; it does NOT mutate the customer's code, config, or auth state. For mutating fixes (re-auth, re-install), surface the appropriate skill (`vektis-install`).
 - **Catalog miss is a soft-fail.** If the input does not match any catalog entry, link to the docs.vektis.io troubleshooting matrix rather than throw.
@@ -53,7 +53,7 @@ If that fails (no local install), fall back to:
 npx -y -p @vektis-io/tracker@^1.0.0 -- node --input-type=module -e "import('@vektis-io/tracker/errors').then(m => console.log(JSON.stringify(m.ERROR_CATALOG)))"
 ```
 
-If both fail, surface the catalog-miss message from `_shared/sdk-error-catalog.md` and stop.
+If both fail, surface the catalog-miss message from the error-catalog reference and stop.
 
 Parse the JSON. `ERROR_CATALOG` is an **object keyed by code** (not an array). Each value has shape `{ code, message, actionItem, docsAnchor, hypotheses[] }`. Look up by `catalog[code]`; iterate via `Object.values(catalog)`.
 

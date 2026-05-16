@@ -1,14 +1,14 @@
-# Shared: CLI Authentication Flow (VEK-383)
+# Shared: CLI Authentication Flow
 
-**Reference doc** — not an invokable skill. Read this file when a customer-facing skill needs to authenticate the customer against vektis-app. Consumed by `vektis-install` (VEK-349); will be consumed by `vektis-instrument` (VEK-378), `vektis-update` (VEK-379), and `vektis-bootstrap` (VEK-380).
+**Reference doc** — not an invokable skill. Read this file when a customer-facing skill needs to authenticate the customer against the Vektis dashboard. Consumed by other Vektis skills that perform authenticated operations.
 
-This is the operational contract for the OAuth Device Flow (RFC 8628) plus paste-token fallback shipped in VEK-383. Both paths produce a `vkcli_*` bearer token stored in `~/.vektis/credentials.json`.
+This is the operational contract for the OAuth Device Flow (RFC 8628) plus paste-token fallback defined by this contract. Both paths produce a `vkcli_*` bearer token stored in `~/.vektis/credentials.json`.
 
 ---
 
 ## Resolve `VEKTIS_API_URL`
 
-Default: `https://app.vektis.io`. Customer can override via `VEKTIS_API_URL` env var for local dev (per VEK-345 pattern). Always read this once and reuse:
+Default: `https://app.vektis.io`. Customer can override via `VEKTIS_API_URL` env var for local dev. Always read this once and reuse:
 
 ```bash
 VEKTIS_API_URL="${VEKTIS_API_URL:-https://app.vektis.io}"
@@ -93,7 +93,7 @@ The auto-open is best-effort. Do NOT throw on non-zero exit — the URL is alrea
 
 ### C.3 — Poll until authorized
 
-Loop calling `POST /api/auth/cli/poll` every `interval` seconds. RFC 8628 status codes from VEK-383:
+Loop calling `POST /api/auth/cli/poll` every `interval` seconds. RFC 8628 status codes:
 
 - **200** — `{ access_token, token_type: "bearer", expires_in }`. Done.
 - **428** — `{ error: "authorization_pending" }`. Customer hasn't clicked Authorize yet. Continue polling.
@@ -160,7 +160,7 @@ fi
 access_token="$pasted_token"
 ```
 
-The customer must have already created the token at `${VEKTIS_API_URL}/settings/api-usage` (the "Personal CLI Tokens" section, Admin-only, shipped in VEK-383). If the customer is not an admin, Step E will surface the role error.
+The customer must have already created the token at `${VEKTIS_API_URL}/settings/api-usage` (the "Personal CLI Tokens" section, Admin-only). If the customer is not an admin, Step E will surface the role error.
 
 ---
 
@@ -201,7 +201,7 @@ This step is **mandatory before any mutating call** (e.g., `POST /api/admin/api-
 
 ## Step F: Persist credentials
 
-Compute `expiresAt` from `$expires_in` (captured in Step C.3 from the poll 200 response). For the paste-token path (Step D), default to 30 days (`expires_in=2592000`) since that matches `CLI_TOKEN_TTL_MS` in VEK-383.
+Compute `expiresAt` from `$expires_in` (captured in Step C.3 from the poll 200 response). For the paste-token path (Step D), default to 30 days (`expires_in=2592000`) since that matches the server-side CLI token TTL.
 
 The `date` syntax differs between BSD (macOS) and GNU (Linux); the snippet below tries GNU first, then falls back to BSD:
 
@@ -227,14 +227,5 @@ Windows note: `chmod 600` is best-effort; on Windows the file inherits ACLs from
 
 ## Re-authentication semantics
 
-- A 401 from any vektis-app endpoint AFTER initial auth means the token was revoked or expired. Delete `~/.vektis/credentials.json` and restart from Step A.
+- A 401 from any Vektis API endpoint after initial auth means the token was revoked or expired. Delete `~/.vektis/credentials.json` and restart from Step A.
 - The skill should NOT loop indefinitely on 401 — one re-auth attempt, then surface the error.
-
----
-
-## Reference (vektis-app source-of-truth)
-
-- `src/proxy.ts:43-51` — public CLI auth routes (no Clerk session required for `/initiate` and `/poll`)
-- `src/backend/auth/dto/device-flow.dto.ts` — device-flow DTO contract
-- `src/backend/auth/dto/cli-token.dto.ts:24-44` — CLI token DTO; `~/.vektis/credentials.json` schema
-- `src/app/api/auth/cli/me/route.ts` — `GET /api/auth/cli/me` returns `{ email, role, organizationId, organizationName }`

@@ -1,10 +1,10 @@
-# Shared: SDK Error Catalog Loading (VEK-282)
+# Shared: SDK Error Catalog Loading
 
-**Reference doc** — not an invokable skill. Read this file when a customer-facing skill needs to consume the `@vektis-io/tracker/errors` catalog. Consumed by `vektis-troubleshoot` (VEK-349); may be consumed by future analytics-debug skills.
+**Reference doc** — not an invokable skill. Read this file when a customer-facing skill needs to consume the `@vektis-io/tracker/errors` catalog.
 
 The catalog is the single source of truth for every error a customer can see from the SDK. Every entry has a stable `code`, human-readable `message`, customer-facing `actionItem`, `docsAnchor` link, and ranked `hypotheses[]`. **Never hardcode error codes or messages** — load the catalog at runtime so the skill stays in sync as the SDK evolves.
 
-Codes are SemVer-stable per VEK-282 AC: removing or renaming a code requires a major version bump and a coordinated skill update.
+Codes are SemVer-stable: removing or renaming a code requires a major version bump and a coordinated skill update.
 
 ---
 
@@ -45,7 +45,7 @@ type ErrorEntry = {
 };
 ```
 
-The `code` field uses the `VEK_TRK_*` namespace per VEK-282. The runtime load is the source of truth — never hardcode the catalog list in skill output, this doc, or downstream consumers.
+The `code` field uses the `VEK_TRK_*` namespace. The runtime load is the source of truth — never hardcode the catalog list in skill output, this doc, or downstream consumers.
 
 ---
 
@@ -113,9 +113,8 @@ Never throw on catalog miss — degrade gracefully to the docs link.
 
 ---
 
-## Reference (vektis-app source-of-truth)
+## Reference
 
-- VEK-282 ticket: defines the catalog contract (`code`, `message`, `actionItem`, `docsAnchor`, `hypotheses[]`)
 - `@vektis-io/tracker@^1.0.0` published on npm
 - `@vektis-io/tracker/errors` sub-export — runtime catalog
-- `https://docs.vektis.io/integrations/tracker/troubleshooting` — auto-generated from the same catalog (per VEK-350)
+- `https://docs.vektis.io/integrations/tracker/troubleshooting` — auto-generated from the same catalog

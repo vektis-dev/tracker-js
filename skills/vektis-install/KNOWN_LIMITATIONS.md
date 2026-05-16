@@ -19,7 +19,7 @@ Each has a committed fixture under `e2e/fixtures/install-fixtures/` and is exerc
 - CRA (Create React App — note: deprecated by Meta in 2023; small but real customer base)
 - Vanilla CDN (any HTML site loading the IIFE bundle)
 
-These work in principle (detection logic + init code templates are in `SKILL.md`) but have NOT been validated end-to-end against committed fixtures in v1. If you hit a framework-specific issue, document the workaround here and file a follow-up ticket to add a Tier 2 fixture.
+These work in principle (detection logic + init code templates are in the skill) but have NOT been validated end-to-end against committed fixtures in v1. If you hit a framework-specific issue, document the workaround here and file a follow-up ticket to add a Tier 2 fixture.
 
 ### Out of scope (not in v1)
 
@@ -47,11 +47,11 @@ Originally proposed: detect logout calls across Clerk, Auth0, NextAuth, Supabase
 
 Cut because: detection across 6 auth providers is fragile (high false-positive risk). Customer's first event still works without it (reset only matters for _subsequent_ sessions after logout). Skill prints a pointer to `https://docs.vektis.io/integrations/tracker/reset-on-logout` (snippets for 6+ providers).
 
-### Verification via vanalytics admin endpoint
+### Programmatic verification endpoint
 
 v1 verification: skill instructs PM to run `vektis.getStatus()` in browser DevTools.
 
-v2 follow-up: call a vanalytics admin endpoint to programmatically confirm `customer.identified` arrived. Requires either a new vanalytics endpoint or reuse of VEK-289's `/api/internal/event-presence`.
+v2 follow-up: call a Vektis events-ingestion admin endpoint to programmatically confirm `customer.identified` arrived. Requires a new admin endpoint on the Vektis events-ingestion service.
 
 ## Platform-specific caveats
 
@@ -63,7 +63,7 @@ If a customer reports credential leakage on Windows, document the workaround her
 
 ### Windows `expiresAt` computation
 
-`_shared/cli-auth.md` Step F computes `expiresAt` via GNU `date -d` (Linux) with a BSD `date -v` fallback (macOS). Neither works in Git Bash (MINGW) or native PowerShell — both invocations fail and `expiresAt` is left empty. An empty `expiresAt` causes Step A's "expiry in the future" check to fail every run, forcing re-authentication on every skill invocation.
+Step F of the shared authentication flow computes `expiresAt` via GNU `date -d` (Linux) with a BSD `date -v` fallback (macOS). Neither works in Git Bash (MINGW) or native PowerShell — both invocations fail and `expiresAt` is left empty. An empty `expiresAt` causes Step A's "expiry in the future" check to fail every run, forcing re-authentication on every skill invocation.
 
 Mitigation today: customer re-auths each run (the OAuth path is fast — ~10s end-to-end). Follow-up: add a `node -e` or `python -c` third fallback in Step F so Windows shells produce a valid ISO8601 timestamp.
 
@@ -81,7 +81,7 @@ Browser auto-open via `open` / `xdg-open` / `start` may silently fail on:
 - Docker containers without `DISPLAY`
 - Cloud IDEs (Codespaces, Gitpod) that don't honor `xdg-open`
 
-Mitigation: after 60s of polling without success, the skill prompts the customer to switch to `--paste-token` mode. The prompt is in `_shared/cli-auth.md` Step C.3.
+Mitigation: after 60s of polling without success, the skill prompts the customer to switch to `--paste-token` mode. The prompt is in Step C.3 of the shared authentication flow.
 
 ### Monorepo edge case
 

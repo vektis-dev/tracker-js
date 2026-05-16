@@ -7,7 +7,7 @@ user-invocable: true
 
 # vektis-install
 
-Install the `@vektis-io/tracker` SDK end-to-end in the customer's current project. The default path is **OAuth — zero credential pastes**. The fallback (`--paste-token`) is **at most one paste action**. Both paths produce a working install with the customer's first event arriving in vanalytics.
+Install the `@vektis-io/tracker` SDK end-to-end in the customer's current project. The default path is **OAuth — zero credential pastes**. The fallback (`--paste-token`) is **at most one paste action**. Both paths produce a working install with the customer's first event arriving in their Vektis analytics dashboard.
 
 ## Hard constraints
 
@@ -42,7 +42,7 @@ Scan for framework markers (in priority order):
 | CRA                    | `"react-scripts"` in dependencies                                        |
 | Vanilla CDN            | None of the above; an `index.html` exists at root                        |
 
-If multiple match (monorepo edge case), prompt the customer to choose. If none match, surface: "Could not detect a supported framework. Supported: Next.js, Vite + React, Nuxt 3, SvelteKit, CRA, vanilla CDN." Tier 2 frameworks (Nuxt, SvelteKit, CRA, vanilla) — see `KNOWN_LIMITATIONS.md` for caveats.
+If multiple match (monorepo edge case), prompt the customer to choose. If none match, surface: "Could not detect a supported framework. Supported: Next.js, Vite + React, Nuxt 3, SvelteKit, CRA, vanilla CDN." Tier 2 frameworks (Nuxt, SvelteKit, CRA, vanilla) are supported best-effort.
 
 Print: `Detected framework: <name>`.
 
@@ -67,15 +67,15 @@ grep -rEl "vektis-io/tracker" --include="*.{ts,tsx,js,jsx,mjs,svelte,vue,html}" 
 Read `.claude/skills/_shared/cli-auth.md` and follow Steps A through F end-to-end.
 
 - Default: OAuth Device Flow.
-- If the customer invoked the skill with `--paste-token`, skip OAuth and go straight to the paste-token branch in `_shared/cli-auth.md` Step D.
+- If the customer invoked the skill with `--paste-token`, skip OAuth and go straight to the paste-token branch (Step D of the shared authentication flow).
 
-After `_shared/cli-auth.md` completes, you have:
+After the authentication flow completes, you have:
 
 - `access_token` — the `vkcli_*` bearer in memory
 - `~/.vektis/credentials.json` — persisted with `{ token, organizationId, expiresAt }`
 - Confirmation: `Authenticated as <email> in <organizationName> org.`
 
-If `_shared/cli-auth.md` Step E surfaced "Ask your admin..." (role !== admin), the skill exits there. Do NOT proceed.
+If the authentication flow Step E surfaced "Ask your admin..." (role !== admin), the skill exits there. Do NOT proceed.
 
 ---
 
@@ -324,8 +324,8 @@ arrive in your analytics dashboard within a few seconds.
 
 ## Failure modes
 
-- **OAuth polling fails for 10 minutes (device_code TTL)** — restart from `_shared/cli-auth.md` Step C.1, OR offer the customer to switch to `--paste-token`.
-- **API key creation returns 403** — the customer is not an admin. The role check in `_shared/cli-auth.md` Step E should have caught this before reaching Step 4. If it surfaces here anyway, surface "Ask your admin to run this skill."
+- **OAuth polling fails for 10 minutes (device_code TTL)** — restart from Step C.1 of the shared authentication flow, OR offer the customer to switch to `--paste-token`.
+- **API key creation returns 403** — the customer is not an admin. The role check in Step E of the shared authentication flow should have caught this before reaching Step 4. If it surfaces here anyway, surface "Ask your admin to run this skill."
 - **`.env.local` write fails (permission denied)** — print the diff and the path, instruct the customer to create the file manually.
 - **Init code site not found** (e.g. unusual project structure) — prompt the customer for the correct path.
 - **Customer cancels mid-flow** — leave `~/.vektis/credentials.json` intact (auth persists), no application files modified yet (all writes are diff-confirmed).

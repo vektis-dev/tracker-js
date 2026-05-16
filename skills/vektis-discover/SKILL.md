@@ -31,13 +31,13 @@ ls package.json index.html nuxt.config.ts svelte.config.* 2>/dev/null
 
 If none of those exist, abort with: `No project markers found. Run claude /vektis-discover from your project root.`
 
-Refuse to run inside the vektis-app source tree itself (developer-test guard):
+Refuse to run inside a Vektis-internal source tree (developer-test guard):
 
 ```bash
 grep -lE '"name":[[:space:]]*"vektis"' package.json 2>/dev/null
 ```
 
-If matched, abort with: `This is the vektis-app source tree. Run /vektis-discover against a customer codebase.`
+If matched, abort with: `This is a Vektis-internal source tree. Run /vektis-discover against a customer codebase.`
 
 If `--scope <path>` was passed, validate the path exists and treat it as the scan root in place of cwd. Print `Scan scope: <path>`.
 
@@ -104,7 +104,7 @@ The canonical regex above is the **starting point**, not the whole job. After ru
 
 ### Skip-already-instrumented filter
 
-Exclude any line matching the canonical Vektis event names (these are already-instrumented features — see `src/components/api-keys/event-usage-help.tsx:6-13` in the vektis-app repo for the source of truth):
+Exclude any line matching the canonical Vektis event names (these are already-instrumented features):
 
 ```regex
 vektis\.track[[:space:]]*\([[:space:]]*['"](feature\.used|feature\.engagement|session\.active|feature\.first_use|customer\.identified)['"]
@@ -131,7 +131,7 @@ Apply this normalizer to convert event names to `feature_id`:
 2. Lowercase.
 3. Replace any run of non-alphanumeric characters with a single `-`.
 4. Trim leading and trailing `-`.
-5. Truncate to 200 characters (`src/backend/dev-items/dto/dev-item.dto.ts:118-123` enforces `trim().max(200)`).
+5. Truncate to 200 characters (the Vektis dashboard enforces `trim().max(200)` server-side).
 
 Examples:
 
@@ -154,7 +154,7 @@ Default to `count`. Apply these heuristics in order to upgrade to other types wh
 
 When upgrading two events into one paired `duration` or `percentage` candidate, **do not surface the individual events as separate `count` candidates** — they are now represented by the paired row. Record both files/lines in `insertion_points` with appropriate `role` values.
 
-The 5 supported `value_type` values are bound by `src/lib/db/schema/dev-items.schema.ts:117-141` and validated by the cross-field rules in `src/backend/dev-items/dto/dev-item.dto.spec.ts:22-76`. Do not invent new values.
+The 5 supported `value_type` values are enforced server-side by the Vektis dashboard. Do not invent new values.
 
 ### `confidence`
 
@@ -361,9 +361,9 @@ When the PM types `cancel`:
 
 Schema is bound by:
 
-- 5 `value_type` values: `src/lib/db/types.ts` (`VALUE_TYPES`) — enforced via `z.enum(VALUE_TYPES)` in `src/backend/dev-items/dto/dev-item.dto.ts:124`. The schema column itself is plain `text("value_type")` (`src/lib/db/schema/dev-items.schema.ts:135-141` documents the values in a comment); validation lives at the DTO layer.
-- `metric_config` shape per `value_type`: `src/backend/dev-items/dto/dev-item.dto.spec.ts:22-76`
-- `feature_id` length cap: `src/backend/dev-items/dto/dev-item.dto.ts:118-123`
+- 5 `value_type` values: `count`, `percentage`, `duration`, `activity`, `currency` — validated server-side at the API DTO layer.
+- `metric_config` shape per `value_type` is validated by cross-field rules in the same DTO layer.
+- `feature_id` length is capped at 200 characters server-side.
 
 Downstream consumers:
 
@@ -389,8 +389,8 @@ Downstream consumers:
 
 - Modify any customer source file (read-only).
 - Insert `vektis.track()` calls — that's `vektis-instrument`.
-- Create Dev Items in vektis-app — that's `vektis-instrument`.
-- Authenticate with vektis-app — discover is purely local; auth is needed only by `vektis-instrument` and `vektis-update`.
+- Create Dev Items in the Vektis dashboard — that's `vektis-instrument`.
+- Authenticate with the Vektis dashboard — discover is purely local; auth is needed only by `vektis-instrument` and `vektis-update`.
 - Detect inferred features (handlers without prior SDK calls) — deferred to a v1.5 follow-up.
 - Scan iOS / Android / Python codebases — v1 is web frontend only.
 - Detect custom in-house analytics SDKs — v1 covers Mixpanel, Segment, Amplitude, PostHog, GA4.

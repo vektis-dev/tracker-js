@@ -2,7 +2,7 @@
 
 This file is the source of truth for which `vektis.track()` call to insert at each `insertion_point` from `.vektis/discover-output.json`. The skill consults this table for every approved candidate.
 
-When `agent-prompt-builder.ts` (VEK-289) ships, this file should be cross-referenced with it; until then, this file IS the canonical contract.
+This file is the canonical contract.
 
 ## Six rules (v1)
 
@@ -65,7 +65,7 @@ vektis.track('feature.engagement', {
 });
 ```
 
-One of two insertion points for duration candidates. Marks when the timed flow ends. Vanalytics computes duration as `end_event_time - start_event_time` per session.
+One of two insertion points for duration candidates. Marks when the timed flow ends. The Vektis events-ingestion service computes duration as `end_event_time - start_event_time` per session.
 
 ### 6. `valueType: activity` — role `action`
 
