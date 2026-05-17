@@ -38,6 +38,8 @@ Available attributes:
 npm install @vektis-io/tracker
 ```
 
+Generate a key at [**Settings → API Keys**](https://app.vektis.io/settings/api-keys) in the VEKTIS dashboard, set it as `NEXT_PUBLIC_VEKTIS_KEY` (or the equivalent public env var for your framework), then:
+
 ```ts
 import { init, identify, track } from "@vektis-io/tracker";
 
