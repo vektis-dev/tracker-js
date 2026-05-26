@@ -83,7 +83,7 @@ jobs:
           cd server
           yarn install --frozen-lockfile
           # Migrate + seed against the services-block Postgres. Seed creates
-          # the test API key (vek_test_pk_local_playground) + test org used by
+          # the test API key (vk_pub_dev_local_playground) + test org used by
           # the integration tests below — without it, every request 401s.
           #
           # Knex's CLI tries to load the TS knexfile via `ts-node/register`
@@ -114,7 +114,7 @@ jobs:
         env:
           TRACKER_INTEGRATION: '1'
           TRACKER_VANALYTICS_URL: http://localhost:3333
-          TRACKER_VANALYTICS_TEST_KEY: vek_test_pk_local_playground
+          TRACKER_VANALYTICS_TEST_KEY: vk_pub_dev_local_playground
           TRACKER_VANALYTICS_ORG_ID: '00000000-0000-4000-8000-000000000001'
           TRACKER_VANALYTICS_INTERNAL_SECRET: ci-internal-secret-do-not-use-in-prod
         run: npm run test:integration

@@ -19,7 +19,7 @@
 import * as vektis from "../src/index";
 
 const VANALYTICS_BASE = process.env.TRACKER_VANALYTICS_URL ?? "http://localhost:3333";
-const TEST_API_KEY = process.env.TRACKER_VANALYTICS_TEST_KEY ?? "vek_test_pk_local_playground";
+const TEST_API_KEY = process.env.TRACKER_VANALYTICS_TEST_KEY ?? "vk_pub_dev_local_playground";
 const TEST_ORG_ID =
   process.env.TRACKER_VANALYTICS_ORG_ID ?? "00000000-0000-4000-8000-000000000001";
 const INTERNAL_SECRET = process.env.TRACKER_VANALYTICS_INTERNAL_SECRET;
@@ -45,7 +45,7 @@ describe("integration: tracker-js → local vanalytics", () => {
       vektis.track("feature.used", { feature_id: `int_test_${i}` });
     }
     await expect(vektis.flush()).resolves.toBeUndefined();
-    // Status should still be READY (not flipped to DISABLED on a 401)
+    // Seeded key returns 2xx; state remains READY.
     expect(vektis.getStatus().state).toBe("READY");
 
     if (INTERNAL_SECRET) {
