@@ -212,22 +212,7 @@ Every error the SDK surfaces is registered in a public sub-export:
 import { ERROR_CATALOG, type ErrorCode } from "@vektis-io/tracker/errors";
 ```
 
-Each entry carries `{ code, message, actionItem, docsAnchor, hypotheses }`. The catalog drives the troubleshooting matrix at [docs.vektis.io/integrations/tracker/troubleshooting](https://docs.vektis.io/integrations/tracker/troubleshooting) and the `claude /vektis-troubleshoot` skill.
-
-## Installing the Claude Code skills
-
-VEKTIS ships a set of [Claude Code skills](https://docs.anthropic.com/en/docs/claude-code) (`vektis-install`, `vektis-troubleshoot`, `vektis-discover`, `vektis-instrument`) that automate end-to-end SDK setup, debug failed events, and instrument analytics calls in your codebase:
-
-```bash
-npx @vektis-io/tracker install-skills
-```
-
-After install, run `claude /vektis-install` (or any other `/vektis-*` skill) from your project root.
-
-- **`--create`** — create `.claude/skills/` if it doesn't exist.
-- **`--force`** — overwrite skills you've edited locally.
-
-Re-running is safe; the script tracks vendor-managed files via a `.vektis-managed` marker and only updates them when this package ships new content.
+Each entry carries `{ code, message, actionItem, docsAnchor, hypotheses }`. The catalog drives the troubleshooting matrix at [docs.vektis.io/integrations/tracker/troubleshooting](https://docs.vektis.io/integrations/tracker/troubleshooting).
 
 ## What changed recently
 
@@ -256,7 +241,7 @@ jsDelivr is also supported: `https://cdn.jsdelivr.net/npm/@vektis-io/tracker@1.2
 | `track(event_type, { feature_id?, action?, properties? })` | Send an engagement event. `feature.*` events require `feature_id`. |
 | `flush()` | Force-flush the queue. Returns `Promise<void>`. |
 | `reset()` | Flush, clear identity, return to UNINITIALIZED. Call on logout. |
-| `getStatus()` | Inspect state machine + queue + identity. Used by the install skill. |
+| `getStatus()` | Inspect state machine + queue + identity. |
 
 Event types: `feature.used`, `feature.engagement`, `feature.first_use`, `session.active`, `customer.identified`.
 

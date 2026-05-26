@@ -1,7 +1,7 @@
 // Canonical error catalog. Single source of truth for every error customers can see.
-// Consumed by the SDK (internal logging), the vektis-troubleshoot Claude Code skill
-// (VEK-349), and the docs.vektis.io troubleshooting matrix (VEK-350). Codes are
-// SemVer-stable: removing or renaming requires a major version bump.
+// Consumed by the SDK (internal logging) and the docs.vektis.io troubleshooting
+// matrix (VEK-350). Codes are SemVer-stable: removing or renaming requires a
+// major version bump.
 
 export type ErrorCode =
   | "VEK_TRK_INVALID_API_KEY"
@@ -198,7 +198,7 @@ export const ERROR_CATALOG: Readonly<Record<ErrorCode, VektisErrorEntry>> = Obje
 });
 
 // Internal logging helper. Routes every SDK warning/error through the catalog
-// so consumers (and our own troubleshoot skill) see consistent text.
+// so consumers see consistent text.
 export type LogLevel = "warn" | "error";
 
 export function logFromCatalog(
