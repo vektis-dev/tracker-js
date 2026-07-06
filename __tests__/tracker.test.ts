@@ -149,6 +149,46 @@ describe("tracker.identify", () => {
     t.init({ apiKey: "vk_test_abc" });
     expect(() => t.identify({} as any)).toThrow(/customer_id/);
   });
+
+  // VEK-544 — optional display name rides customer.identified via properties.
+  test("identify with a name carries a trimmed name in properties", async () => {
+    const fetchFn = makeFetch();
+    const t = new Tracker({ fetchFn: fetchFn as any });
+    t.init({ apiKey: "vk_test_abc" });
+    t.identify({ customer_id: "cust_a", name: "  Acme Corp  " });
+    await t.flush();
+    const events = fetchFn.mock.calls
+      .filter((c) => (c[1] as any).method === "POST")
+      .flatMap((c) => JSON.parse((c[1] as any).body).events);
+    const identified = events.find((e: any) => e.event_type === "customer.identified");
+    expect(identified.properties).toEqual({ name: "Acme Corp" });
+  });
+
+  test("identify without a name emits no properties key", async () => {
+    const fetchFn = makeFetch();
+    const t = new Tracker({ fetchFn: fetchFn as any });
+    t.init({ apiKey: "vk_test_abc" });
+    t.identify({ customer_id: "cust_a" });
+    await t.flush();
+    const events = fetchFn.mock.calls
+      .filter((c) => (c[1] as any).method === "POST")
+      .flatMap((c) => JSON.parse((c[1] as any).body).events);
+    const identified = events.find((e: any) => e.event_type === "customer.identified");
+    expect(identified.properties).toBeUndefined();
+  });
+
+  test("identify with a whitespace-only name emits no properties key", async () => {
+    const fetchFn = makeFetch();
+    const t = new Tracker({ fetchFn: fetchFn as any });
+    t.init({ apiKey: "vk_test_abc" });
+    t.identify({ customer_id: "cust_a", name: "   " });
+    await t.flush();
+    const events = fetchFn.mock.calls
+      .filter((c) => (c[1] as any).method === "POST")
+      .flatMap((c) => JSON.parse((c[1] as any).body).events);
+    const identified = events.find((e: any) => e.event_type === "customer.identified");
+    expect(identified.properties).toBeUndefined();
+  });
 });
 
 describe("tracker.track / customer_id injection", () => {

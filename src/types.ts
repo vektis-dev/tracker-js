@@ -28,6 +28,12 @@ export interface VektisConfig {
 export interface VektisIdentity {
   customer_id: string;
   user_id?: string;
+  /**
+   * Optional human-readable display name for the customer (e.g. "Acme Corp"),
+   * carried on the customer.identified event so the VEKTIS dashboard can show
+   * a name instead of the raw customer_id (VEK-544). Trimmed before sending.
+   */
+  name?: string;
 }
 
 export type PropertyValue = string | number | boolean;

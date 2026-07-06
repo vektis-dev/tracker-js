@@ -120,7 +120,14 @@ export class Tracker {
       logFromCatalog("VEK_TRK_IDENTIFY_BEFORE_INIT", "warn");
       return;
     }
-    this.enqueueEvent("customer.identified");
+    // VEK-544: carry an optional display name on customer.identified via
+    // properties (no schema change). Trim so "  " never ships (the dashboard
+    // would render a blank cell instead of falling back to customer_id).
+    const name = id.name?.trim();
+    this.enqueueEvent(
+      "customer.identified",
+      name ? { properties: { name } } : {},
+    );
   }
 
   track(eventType: EventType, data: TrackData = {}): void {
