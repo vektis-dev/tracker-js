@@ -227,10 +227,10 @@ Each entry carries `{ code, message, actionItem, docsAnchor, hypotheses }`. The 
 For non-bundled / `<script>` usage you can pin to an exact version:
 
 ```html
-<script src="https://unpkg.com/@vektis-io/tracker@1.2.0/dist/vektis-tracker.iife.js" async></script>
+<script src="https://unpkg.com/@vektis-io/tracker@1/dist/vektis-tracker.iife.js" async></script>
 ```
 
-jsDelivr is also supported: `https://cdn.jsdelivr.net/npm/@vektis-io/tracker@1.2.0/dist/vektis-tracker.iife.js`.
+jsDelivr is also supported: `https://cdn.jsdelivr.net/npm/@vektis-io/tracker@1/dist/vektis-tracker.iife.js`.
 
 ## API reference
 
