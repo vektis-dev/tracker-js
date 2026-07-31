@@ -17,6 +17,7 @@ describe("errors catalog", () => {
       "VEK_TRK_LIVE_KEY_LOCAL",
       "VEK_TRK_PRE_INIT_QUEUE_OVERFLOW",
       "VEK_TRK_NON_PUBLISHABLE_KEY",
+      "VEK_TRK_AUTOINIT_UNAVAILABLE",
     ];
     for (const code of codes) {
       const entry = ERROR_CATALOG[code];

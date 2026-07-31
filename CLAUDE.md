@@ -22,7 +22,8 @@ npm run size               # size-limit: ESM bundle gzipped < 8KB hard cap
 - **Tracker class (`src/tracker.ts`)** — transport-agnostic state machine (UNINITIALIZED → READY → DISABLED), identity context, customer_id injection, debug heuristics (vk_test on non-local + vk_live on localhost), getStatus introspection. Sender is injected for testability.
 - **Queue (`src/queue.ts`)** — batch buffer, flushing lock (concurrent flush() shares one in-flight promise), 100-event split, 480KB byte-size pre-split (server limit 512KB), offline/online handling, drain() for sendBeacon path.
 - **Transport (`src/transport.ts`)** — fetch (normal, key in `X-Vektis-Key` header) + sendBeacon (page unload, key in request body — sendBeacon can't set headers, URL stays clean) + `fetch(..., { keepalive: true })` fallback when sendBeacon rejects the batch (over-size/throttled) + retry with exp backoff/jitter + Retry-After parsing. No OPTIONS prewarm (vanalytics caches CORS preflight) and no production-mode CSP-hint logging — both removed; debug mode still surfaces `VEK_TRK_NETWORK_ERROR`.
-- **Public API (`src/index.ts`)** — pre-init queue (1000-cap, drop-oldest, replay on init), visibilitychange:hidden + pagehide listeners.
+- **Public API (`src/index.ts`)** — pre-init queue (1000-cap, drop-oldest, replay on init), visibilitychange:hidden + pagehide listeners, `initFromDataset(el?)`.
+- **Dataset bootstrap (`src/auto-init.ts`)** — `applyDataset(el, init, identify)` is the single `data-vektis-*` attribute contract. Two entry points: `tryAutoInit` (classic `<script>`, via `document.currentScript`, fired as a module side effect at the bottom of `index.ts`) and the public `initFromDataset` for ESM/importmap hosts. `currentScript` is null for module scripts, so the module path must be explicit — VEK-576.
 - **Build tool: tsup.** Outputs `vektis-tracker.esm.js`, `vektis-tracker.iife.js` (global `vektis`), errors sub-export bundle, and `.d.ts`. Mirror of `@vektis-io/events-schema`'s tsup config with adapted format set.
 
 ## Directory Structure
@@ -30,9 +31,9 @@ npm run size               # size-limit: ESM bundle gzipped < 8KB hard cap
 ```
 src/                          See Architecture for per-file responsibilities
   index.ts, types.ts, constants.ts, errors.ts, tracker.ts,
-  queue.ts, transport.ts, uuid.ts, validate.ts
+  queue.ts, transport.ts, uuid.ts, validate.ts, auto-init.ts
 __tests__/
-  errors|uuid|validate|transport|queue|tracker|index.test.ts   Unit
+  errors|uuid|validate|transport|queue|tracker|index|auto-init.test.ts   Unit
   contract.test.ts                  SDK payloads pass @vektis-io/events-schema
   integration.test.ts               E2E against local vanalytics (TRACKER_INTEGRATION=1)
 scripts/
@@ -58,6 +59,8 @@ scripts/
 | `--provenance=false` in any local publish command | Looks like a security regression | Required to override `publishConfig.provenance: true` when token-publishing locally for the bootstrap. OIDC release path still emits provenance. |
 | `actions/checkout@v6` and `actions/setup-node@v6` (not @v4) | Inconsistent with older repos | Bumped pre-emptively for the Node.js 20 → 24 forced migration on June 2, 2026. Same fix needs to land in `events-schema` ([VEK-354](https://linear.app/vektis/issue/VEK-354)). |
 | Integration test pinned to `node` jest environment, not `jsdom` | Inconsistent with the rest of `__tests__/` | jsdom strips Node's native `fetch` global, breaking integration tests that need real network. The `/** @jest-environment node */` directive at the top of `integration.test.ts` is intentional. |
+| `tryAutoInit` returns without initializing whenever `document.currentScript` is null | Looks like a dead branch that swallows the ESM case | Deliberate: that branch is classic-`<script>`-only, because module scripts never set `currentScript`. ESM hosts bootstrap via `initFromDataset(el)`; when the page has `data-vektis-*` attributes but no `currentScript`, the SDK warns `VEK_TRK_AUTOINIT_UNAVAILABLE` rather than guessing. See VEK-576. |
+| `VEK_TRK_AUTOINIT_UNAVAILABLE` warns outside debug mode | Every other diagnostic is debug-gated | Debug mode is read from `data-vektis-debug` during init, so it isn't known when this fires. The warning can only trigger on a page already carrying `data-vektis-*` attributes, so it can't spam unrelated apps — and silence is the bug it exists to fix. |
 | Live-verify harness uses synthetic event dispatch, not navigation | Doesn't match real-browser unload behavior | Playwright's `page.goto('about:blank')` + `context.close()` abort in-flight beacons in both headless and headed mode. Synthetic dispatch (`Object.defineProperty(document, 'visibilityState')` + `dispatchEvent`) is the workaround. Real browsers are MORE forgiving than Playwright at unload, so a pass on the harness implies pass in production. See the [Live Verification Runbook](https://github.com/vektis-dev/knowledge-base/blob/main/Operations/technical-setup/browser-sdk-live-verification-runbook.md). |
 
 ## Cross-references

@@ -1,10 +1,15 @@
-// Script-tag auto-init. Reads `data-vektis-*` attributes from the currently
-// executing <script> tag and calls init() / identify() automatically. Zero
-// customer code beyond a single <script> tag.
+// Dataset bootstrap. Reads `data-vektis-*` attributes off an element and calls
+// init() / identify() from them.
 //
-// For ESM consumers, `document.currentScript` is null at import time, so this
-// is a silent no-op — they still call init() themselves.
+// Two entry points share the same attribute contract:
+//   - tryAutoInit() — classic <script> tags, driven by document.currentScript.
+//   - applyDataset() — any element, used by the public initFromDataset() export.
+//
+// `document.currentScript` is null for <script type="module">, so module hosts
+// (Rails importmap, any no-build ESM setup) cannot use the currentScript path
+// at all — they call initFromDataset(element) instead. See VEK-576.
 
+import { logFromCatalog } from "./errors.js";
 import type { VektisConfig, VektisIdentity } from "./types.js";
 
 type InitFn = (config: VektisConfig) => void;
@@ -16,20 +21,22 @@ function trimOrUndefined(v: string | null | undefined): string | undefined {
   return trimmed.length === 0 ? undefined : trimmed;
 }
 
-export function tryAutoInit(init: InitFn, identify: IdentifyFn): void {
-  if (typeof document === "undefined") return;
-  // `currentScript` is set during script-tag evaluation. ESM/CJS module loads
-  // through bundlers come back null — those consumers init() themselves.
-  const script = document.currentScript as HTMLScriptElement | null;
-  if (!script) return;
+/**
+ * Read `data-vektis-*` attributes off `el` and bootstrap from them. Returns
+ * false (without calling init) when there's no usable `data-vektis-key`.
+ */
+export function applyDataset(
+  el: Element,
+  init: InitFn,
+  identify: IdentifyFn
+): boolean {
+  const apiKey = trimOrUndefined(el.getAttribute("data-vektis-key"));
+  if (!apiKey) return false;
 
-  const apiKey = trimOrUndefined(script.getAttribute("data-vektis-key"));
-  if (!apiKey) return;
-
-  const debugAttr = script.getAttribute("data-vektis-debug");
-  const endpoint = trimOrUndefined(script.getAttribute("data-vektis-endpoint"));
-  const customerId = trimOrUndefined(script.getAttribute("data-vektis-customer-id"));
-  const userId = trimOrUndefined(script.getAttribute("data-vektis-user-id"));
+  const debugAttr = el.getAttribute("data-vektis-debug");
+  const endpoint = trimOrUndefined(el.getAttribute("data-vektis-endpoint"));
+  const customerId = trimOrUndefined(el.getAttribute("data-vektis-customer-id"));
+  const userId = trimOrUndefined(el.getAttribute("data-vektis-user-id"));
 
   const config: VektisConfig = { apiKey };
   if (endpoint) config.endpoint = endpoint;
@@ -44,5 +51,25 @@ export function tryAutoInit(init: InitFn, identify: IdentifyFn): void {
     const identity: VektisIdentity = { customer_id: customerId };
     if (userId) identity.user_id = userId;
     identify(identity);
+  }
+  return true;
+}
+
+export function tryAutoInit(init: InitFn, identify: IdentifyFn): void {
+  if (typeof document === "undefined") return;
+  // `currentScript` is set during classic script-tag evaluation. Module scripts
+  // and bundler-driven imports come back null.
+  const script = document.currentScript as HTMLScriptElement | null;
+  if (script) {
+    applyDataset(script, init, identify);
+    return;
+  }
+
+  // No currentScript. If the page carries data-vektis-* attributes anyway, the
+  // host followed the script-tag docs in a module context and would otherwise
+  // get total silence — every track() dropped with no diagnostic. Warn
+  // unconditionally: this can only fire on a page already wired for Vektis.
+  if (document.querySelector("[data-vektis-key]")) {
+    logFromCatalog("VEK_TRK_AUTOINIT_UNAVAILABLE", "warn");
   }
 }

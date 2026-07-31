@@ -2,7 +2,7 @@
 // pre-init queue (so identify/track called before init are replayed), and the
 // page-unload listeners that drive sendBeacon flush.
 
-import { tryAutoInit } from "./auto-init.js";
+import { applyDataset, tryAutoInit } from "./auto-init.js";
 import { MAX_PRE_INIT_QUEUE } from "./constants.js";
 import { logFromCatalog } from "./errors.js";
 import { Tracker } from "./tracker.js";
@@ -59,6 +59,23 @@ export function init(config: VektisConfig): void {
       t.track(call.eventType, call.data);
     }
   }
+}
+
+/**
+ * Initialize from `data-vektis-*` attributes on an element. This is the ESM /
+ * importmap equivalent of the script-tag auto-init path — `document.currentScript`
+ * is null for module scripts, so module hosts bootstrap explicitly (VEK-576).
+ *
+ * Pass the element carrying the attributes (in a Stimulus controller,
+ * `this.element`). With no argument, the first `[data-vektis-key]` element in
+ * the document is used. Inspect `getStatus()` to confirm the result — a missing
+ * element or key is a no-op.
+ */
+export function initFromDataset(el?: Element | null): void {
+  if (typeof document === "undefined") return;
+  const target = el ?? document.querySelector("[data-vektis-key]");
+  if (!target) return;
+  applyDataset(target, init, identify);
 }
 
 export function identify(id: VektisIdentity): void {

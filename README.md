@@ -32,6 +32,15 @@ Available attributes:
 | `data-vektis-customer-id` | If set, triggers `identify({ customer_id })` automatically. |
 | `data-vektis-user-id` | Included on `identify()` when `data-vektis-customer-id` is set. |
 
+> **This path needs a classic `<script>` tag.** `document.currentScript` is `null` for `<script type="module">`, so the SDK cannot find its own attributes in an ESM host (Rails importmap, or any no-build module setup). If you load the SDK as a module, call `initFromDataset(element)` with the element carrying the attributes — or just call `init()` explicitly:
+>
+> ```js
+> import { initFromDataset } from "@vektis-io/tracker";
+> initFromDataset(document.body); // reads data-vektis-* from <body>
+> ```
+>
+> The SDK warns with `VEK_TRK_AUTOINIT_UNAVAILABLE` when it detects this situation. Rails/Hotwire guide: [docs.vektis.io/integrations/tracker](https://docs.vektis.io/integrations/tracker).
+
 ## Quick start — npm
 
 ```bash
@@ -216,6 +225,7 @@ Each entry carries `{ code, message, actionItem, docsAnchor, hypotheses }`. The 
 
 ## What changed recently
 
+- **`initFromDataset(el?)` bootstraps ESM / importmap hosts.** Script-tag auto-init relies on `document.currentScript`, which is `null` for module scripts — so `data-vektis-*` attributes were silently ignored in Rails importmap and similar no-build ESM setups. The SDK now warns with `VEK_TRK_AUTOINIT_UNAVAILABLE` when it sees the attributes but can't use them, and `initFromDataset()` gives those hosts the same one-liner bootstrap.
 - **`session.active` is no longer fired automatically.** Calling `init()` no longer enqueues a `session.active` event behind the scenes. If you want session counts in your VEKTIS dashboard, call `vektis.track("session.active")` explicitly after `identify()`. The `autoSessionActive` config option has been removed.
 - **The API key now travels in the request body on the `sendBeacon` (page-unload) path** — no more `?key=` in the URL. Keys never appear in browser history or server access logs.
 - **Publishable keys (`vk_pub_*`) are now first-class.** Non-publishable keys still work but trigger a `VEK_TRK_NON_PUBLISHABLE_KEY` warning. Set `allowFullScopeKey: false` to make the warning a hard error.
@@ -237,6 +247,7 @@ jsDelivr is also supported: `https://cdn.jsdelivr.net/npm/@vektis-io/tracker@1/d
 | Method | Description |
 | --- | --- |
 | `init({ apiKey, endpoint?, flushIntervalMs?, flushThreshold?, allowFullScopeKey?, debug? })` | Initialize the SDK. Call once at app startup, or omit entirely if using the script-tag `data-vektis-*` path. |
+| `initFromDataset(el?)` | Initialize from `data-vektis-*` attributes on `el` (defaults to the first `[data-vektis-key]` element). The ESM/importmap equivalent of the script-tag path. |
 | `identify({ customer_id, user_id? })` | Set the identity for subsequent events. Required before `track()`. |
 | `track(event_type, { feature_id?, action?, properties? })` | Send an engagement event. `feature.*` events require `feature_id`. |
 | `flush()` | Force-flush the queue. Returns `Promise<void>`. |
