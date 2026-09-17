@@ -3,7 +3,7 @@
   "version": "1.3.0",
   "description": "Browser JavaScript SDK for sending engagement events to VEKTIS. Zero runtime dependencies, <5KB gzipped.",
   "license": "MIT",
-  "author": "VEKTIS",
+  "author": "VEKTIS Labs PBC",
   "homepage": "https://github.com/vektis-dev/tracker-js#readme",
   "repository": {
     "type": "git",
