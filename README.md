@@ -32,6 +32,132 @@ Available attributes:
 | `data-vektis-customer-id` | If set, triggers `identify({ customer_id })` automatically. |
 | `data-vektis-user-id` | Included on `identify()` when `data-vektis-customer-id` is set. |
 
+> **This path needs a classic `<script>` tag.** `document.currentScript` is `null` for `<script type="module">`, so the SDK cannot find its own attributes in an ESM host (Rails importmap, or any no-build module setup). The SDK warns with `VEK_TRK_AUTOINIT_UNAVAILABLE` when it sees the attributes but can't use them. Load the SDK as a module and bootstrap it explicitly instead — see [Quick start — Rails + importmap](#quick-start--rails--importmap).
+
+## Quick start — Rails + importmap
+
+Rails (importmap-rails + Propshaft) has no build step — every script on the page is a `<script type="module">`. The SDK ships a standalone ESM bundle for exactly this shape, so no bundler, transpiler, or `node_modules` is involved.
+
+### Install
+
+Vendor the SDK into your app:
+
+```bash
+bin/importmap pin @vektis-io/tracker --download
+```
+
+That downloads `dist/vektis-tracker.esm.js` into `vendor/javascript/`, writes the pin into `config/importmap.rb`, and lets Propshaft serve it. Commit the vendored file. It resolves cleanly because `exports["."]` lists `import` ahead of `browser` — so ESM wins over the IIFE — and the ESM bundle is genuinely standalone: zero runtime dependencies, no bare specifiers, a plain `export { ... }` at the end.
+
+> **Don't vendor the IIFE build.** `dist/vektis-tracker.iife.js` assigns a `window.vektis` global and is not an ES module — importing it gives you no exports at all.
+
+**The `./errors` sub-export needs its own pin.** Importmaps do not resolve subpaths from a parent pin, so `import { ERROR_CATALOG } from "@vektis-io/tracker/errors"` 404s unless you also run:
+
+```bash
+bin/importmap pin @vektis-io/tracker/errors --download
+```
+
+You can pin from a CDN instead:
+
+```ruby
+pin "@vektis-io/tracker", to: "https://ga.jspm.io/npm:@vektis-io/tracker@1.3.0/dist/vektis-tracker.esm.js"
+```
+
+Pin an exact version — JSPM URLs don't accept ranges. The trade-off: nothing to commit and nothing to re-vendor on upgrade, but you take a runtime dependency on a third-party origin, lose offline development, and need a `script-src` CSP entry that the vendored path doesn't require.
+
+### Bootstrap — a Stimulus controller
+
+A Stimulus controller is the idiomatic place to start the SDK. Pass the configuration in from your layout as Stimulus values so the key and endpoint stay server-rendered:
+
+```erb
+<%# app/views/layouts/application.html.erb %>
+<body
+  data-controller="vektis"
+  data-vektis-api-key-value="<%= Rails.configuration.x.vektis.publishable_key %>"
+  data-vektis-endpoint-value="<%= Rails.configuration.x.vektis.endpoint %>"
+  data-vektis-customer-id-value="<%= Current.customer_id %>"
+  data-vektis-user-id-value="<%= Current.user&.id %>"
+  data-vektis-debug-value="<%= Rails.env.development? %>"
+>
+```
+
+```js
+// app/javascript/controllers/vektis_controller.js
+import { Controller } from "@hotwired/stimulus";
+import { init, identify, getStatus } from "@vektis-io/tracker";
+
+export default class extends Controller {
+  static values = {
+    apiKey: String,
+    endpoint: String,
+    customerId: String,
+    userId: String,
+    debug: Boolean,
+  };
+
+  connect() {
+    if (getStatus().state !== "UNINITIALIZED") return;
+    if (!this.apiKeyValue || !this.customerIdValue) return;
+
+    try {
+      init({
+        apiKey: this.apiKeyValue,
+        endpoint: this.endpointValue || undefined,
+        debug: this.debugValue,
+      });
+      identify({
+        customer_id: this.customerIdValue,
+        user_id: this.userIdValue || undefined,
+      });
+    } catch (error) {
+      console.warn("Vektis init failed", error);
+    }
+  }
+}
+```
+
+Pass `endpoint` as `this.endpointValue || undefined` — an unset Stimulus `String` value is `""`, and the SDK only falls back to its default endpoint on `null`/`undefined`, so an empty string would be used verbatim and every request would fail.
+
+The `try/catch` is not decoration — `init()` throws if `apiKey` is missing or isn't a string, and an uncaught exception in `connect()` takes down every other controller on that element.
+
+If you'd rather use the attribute contract, `initFromDataset(el)` reads the same `data-vektis-*` attributes documented above off any element — in a Stimulus controller, `this.element` — and calls `init()` and `identify()` for you. It's the ESM equivalent of the script-tag path. Use one form or the other, not both.
+
+### Ordering
+
+`init()` first, then `identify()`, and only then `track()`. Once `init()` has run, a `track()` with no identity is dropped with a `VEK_TRK_MISSING_IDENTITY` warning — there is no anonymous fallback.
+
+Calls made *before* `init()` are buffered rather than dropped (see [The queue-before-init contract](#the-queue-before-init-contract)), but they replay in the order they were made. So `track()` → `identify()` → `init()` still drops that first event: the replay reaches `track()` while the tracker has no identity yet. If other controllers can fire `track()` while the page is still booting, make sure `identify()` is queued ahead of them.
+
+### Turbo Drive
+
+Turbo replaces `<body>` without a full page load, so already-evaluated modules are never re-evaluated. The SDK is a module-level singleton, which means the tracker instance, its in-memory identity, the pending queue, and the flush timer all **survive in-app navigation**.
+
+- **Don't re-`init()` on every visit.** `connect()` fires again on each Turbo visit, and a second `init()` logs `VEK_TRK_INIT_TWICE` and **discards the new config** — the original one keeps running. The `getStatus().state !== "UNINITIALIZED"` guard above is what keeps this quiet.
+- **You don't need to re-`identify()`.** Identity persists across Turbo visits for the same reason.
+- **The unload flush is unaffected.** `init()` attaches `visibilitychange` (on hidden) and `pagehide` listeners once, on `document` and `window` — objects Turbo doesn't replace. They fire on real navigation and tab close, not on Turbo visits. In between, queued events go out on the normal cadence: every 5 seconds, or immediately once 10 events are queued.
+- **Call `reset()` on logout.** Identity is in memory only — the SDK writes no cookie, no `localStorage`, no session ID, and no anonymous ID. Wire `reset()` into your sign-out path so the next user on the same browser doesn't inherit the previous identity. `reset()` also clears the stored config, including the API key, and returns the state machine to `UNINITIALIZED`, so the next login needs a fresh `init()` — which the `connect()` guard handles for you.
+
+### Local and self-hosted endpoints
+
+`endpoint` defaults to production (`https://events.vektis.io/api/v1/events`). If you run the ingest server locally or self-host it, you must pass `endpoint` explicitly — the SDK does no environment detection:
+
+```ruby
+# config/initializers/vektis.rb
+Rails.configuration.x.vektis.endpoint =
+  ENV.fetch("VEKTIS_ENDPOINT", "https://events.vektis.io/api/v1/events")
+```
+
+### CSP in Rails
+
+If `config/initializers/content_security_policy.rb` is enabled, allow the ingest endpoint:
+
+```
+connect-src 'self' https://events.vektis.io;
+```
+
+Vendoring via `pin --download` needs no `script-src` change, since the SDK is served from your own origin. A CDN pin does: add `https://ga.jspm.io` (or whichever origin you pinned) to `script-src`.
+
+Nonces need no special handling. `javascript_importmap_tags` already passes `content_security_policy_nonce` to the tags it emits, so the importmap and its module preloads are covered by Rails' own nonce plumbing.
+
 ## Quick start — npm
 
 ```bash
@@ -216,6 +342,7 @@ Each entry carries `{ code, message, actionItem, docsAnchor, hypotheses }`. The 
 
 ## What changed recently
 
+- **`initFromDataset(el?)` bootstraps ESM / importmap hosts.** Script-tag auto-init relies on `document.currentScript`, which is `null` for module scripts — so `data-vektis-*` attributes were silently ignored in Rails importmap and similar no-build ESM setups. The SDK now warns with `VEK_TRK_AUTOINIT_UNAVAILABLE` when it sees the attributes but can't use them, and `initFromDataset()` gives those hosts the same one-liner bootstrap.
 - **`session.active` is no longer fired automatically.** Calling `init()` no longer enqueues a `session.active` event behind the scenes. If you want session counts in your VEKTIS dashboard, call `vektis.track("session.active")` explicitly after `identify()`. The `autoSessionActive` config option has been removed.
 - **The API key now travels in the request body on the `sendBeacon` (page-unload) path** — no more `?key=` in the URL. Keys never appear in browser history or server access logs.
 - **Publishable keys (`vk_pub_*`) are now first-class.** Non-publishable keys still work but trigger a `VEK_TRK_NON_PUBLISHABLE_KEY` warning. Set `allowFullScopeKey: false` to make the warning a hard error.
@@ -237,6 +364,7 @@ jsDelivr is also supported: `https://cdn.jsdelivr.net/npm/@vektis-io/tracker@1/d
 | Method | Description |
 | --- | --- |
 | `init({ apiKey, endpoint?, flushIntervalMs?, flushThreshold?, allowFullScopeKey?, debug? })` | Initialize the SDK. Call once at app startup, or omit entirely if using the script-tag `data-vektis-*` path. |
+| `initFromDataset(el?)` | Initialize from `data-vektis-*` attributes on `el` (defaults to the first `[data-vektis-key]` element). The ESM/importmap equivalent of the script-tag path. |
 | `identify({ customer_id, user_id? })` | Set the identity for subsequent events. Required before `track()`. |
 | `track(event_type, { feature_id?, action?, properties? })` | Send an engagement event. `feature.*` events require `feature_id`. |
 | `flush()` | Force-flush the queue. Returns `Promise<void>`. |

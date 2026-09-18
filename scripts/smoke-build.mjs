@@ -5,7 +5,15 @@
 import * as vektis from "../dist/vektis-tracker.esm.js";
 import { ERROR_CATALOG } from "../dist/errors.js";
 
-const required = ["init", "identify", "track", "flush", "reset", "getStatus"];
+const required = [
+  "init",
+  "initFromDataset",
+  "identify",
+  "track",
+  "flush",
+  "reset",
+  "getStatus",
+];
 for (const name of required) {
   if (typeof vektis[name] !== "function") {
     console.error(`smoke FAIL: ${name} is not a function on the public API`);

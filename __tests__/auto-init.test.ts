@@ -1,4 +1,4 @@
-import { tryAutoInit } from "../src/auto-init";
+import { applyDataset, tryAutoInit } from "../src/auto-init";
 
 function withCurrentScript(attrs: Record<string, string>, fn: () => void): void {
   const script = document.createElement("script");
@@ -18,17 +18,53 @@ function withCurrentScript(attrs: Record<string, string>, fn: () => void): void 
   }
 }
 
+function withoutCurrentScript(): void {
+  Object.defineProperty(document, "currentScript", {
+    configurable: true,
+    value: null,
+  });
+}
+
+function warnedCodes(): string[] {
+  return (console.warn as jest.Mock).mock.calls.map((c) => String(c[0]));
+}
+
+beforeEach(() => {
+  jest.spyOn(console, "warn").mockImplementation(() => undefined);
+});
+
+afterEach(() => {
+  jest.restoreAllMocks();
+  document.body.innerHTML = "";
+});
+
 describe("auto-init.tryAutoInit", () => {
-  test("no-op when currentScript is null (ESM consumer path)", () => {
-    Object.defineProperty(document, "currentScript", {
-      configurable: true,
-      value: null,
-    });
+  test("no-op and silent when currentScript is null and the page has no data-vektis-key (bundler path)", () => {
+    withoutCurrentScript();
     const init = jest.fn();
     const identify = jest.fn();
     tryAutoInit(init, identify);
     expect(init).not.toHaveBeenCalled();
     expect(identify).not.toHaveBeenCalled();
+    // A plain bundled app must never see SDK console noise.
+    expect(warnedCodes()).toHaveLength(0);
+  });
+
+  test("warns VEK_TRK_AUTOINIT_UNAVAILABLE when currentScript is null but the page carries data-vektis-key (VEK-576)", () => {
+    withoutCurrentScript();
+    document.body.innerHTML =
+      '<div data-vektis-key="vk_pub_prd_abc" data-vektis-customer-id="cust_x"></div>';
+    const init = jest.fn();
+    const identify = jest.fn();
+
+    tryAutoInit(init, identify);
+
+    // Still does not initialize — the host must call initFromDataset().
+    expect(init).not.toHaveBeenCalled();
+    expect(identify).not.toHaveBeenCalled();
+    expect(
+      warnedCodes().some((c) => c.includes("VEK_TRK_AUTOINIT_UNAVAILABLE"))
+    ).toBe(true);
   });
 
   test("no-op when data-vektis-key is missing", () => {
@@ -135,5 +171,55 @@ describe("auto-init.tryAutoInit", () => {
         expect(identify).not.toHaveBeenCalled();
       }
     );
+  });
+});
+
+describe("auto-init.applyDataset", () => {
+  function el(attrs: Record<string, string>): Element {
+    const div = document.createElement("div");
+    for (const [k, v] of Object.entries(attrs)) div.setAttribute(k, v);
+    return div;
+  }
+
+  test("returns false and does not init when data-vektis-key is absent", () => {
+    const init = jest.fn();
+    const identify = jest.fn();
+    expect(applyDataset(el({}), init, identify)).toBe(false);
+    expect(init).not.toHaveBeenCalled();
+    expect(identify).not.toHaveBeenCalled();
+  });
+
+  test("returns false when data-vektis-key is whitespace only", () => {
+    const init = jest.fn();
+    expect(applyDataset(el({ "data-vektis-key": "   " }), init, jest.fn())).toBe(
+      false
+    );
+    expect(init).not.toHaveBeenCalled();
+  });
+
+  test("reads the same attribute contract as the script-tag path", () => {
+    const init = jest.fn();
+    const identify = jest.fn();
+    const ok = applyDataset(
+      el({
+        "data-vektis-key": "vk_pub_prd_abc",
+        "data-vektis-endpoint": "http://localhost:3333/api/v1/events",
+        "data-vektis-debug": "",
+        "data-vektis-customer-id": "cust_x",
+        "data-vektis-user-id": "user_42",
+      }),
+      init,
+      identify
+    );
+    expect(ok).toBe(true);
+    expect(init).toHaveBeenCalledWith({
+      apiKey: "vk_pub_prd_abc",
+      endpoint: "http://localhost:3333/api/v1/events",
+      debug: true,
+    });
+    expect(identify).toHaveBeenCalledWith({
+      customer_id: "cust_x",
+      user_id: "user_42",
+    });
   });
 });

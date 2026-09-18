@@ -17,7 +17,8 @@ export type ErrorCode =
   | "VEK_TRK_TEST_KEY_NON_LOCAL"
   | "VEK_TRK_LIVE_KEY_LOCAL"
   | "VEK_TRK_PRE_INIT_QUEUE_OVERFLOW"
-  | "VEK_TRK_NON_PUBLISHABLE_KEY";
+  | "VEK_TRK_NON_PUBLISHABLE_KEY"
+  | "VEK_TRK_AUTOINIT_UNAVAILABLE";
 
 export interface VektisErrorEntry {
   code: ErrorCode;
@@ -193,6 +194,19 @@ export const ERROR_CATALOG: Readonly<Record<ErrorCode, VektisErrorEntry>> = Obje
       "Server-side key (vk_test_/vk_live_) accidentally shipped to the browser",
       "Publishable key not yet generated for this org",
       "Env var wired to the wrong key type",
+    ],
+  },
+  VEK_TRK_AUTOINIT_UNAVAILABLE: {
+    code: "VEK_TRK_AUTOINIT_UNAVAILABLE",
+    message:
+      "Found data-vektis-* attributes but script-tag auto-init is unavailable: document.currentScript is null for module scripts. The SDK was not initialized.",
+    actionItem:
+      "Call vektis.initFromDataset(element) with the element carrying the attributes (e.g. document.body), or call vektis.init() with an explicit config.",
+    docsAnchor: `${DOCS_BASE}#autoinit-unavailable`,
+    hypotheses: [
+      'SDK loaded via <script type="module"> — module scripts never set document.currentScript',
+      "Rails importmap, or another no-build ESM host, importing the SDK as a module",
+      "Bundled app that copied the script-tag data-vektis-* snippet from the README instead of calling init()",
     ],
   },
 });

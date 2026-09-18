@@ -21,8 +21,9 @@ afterEach(() => {
 });
 
 describe("public API surface", () => {
-  test("exports init, identify, track, flush, reset, getStatus", () => {
+  test("exports init, initFromDataset, identify, track, flush, reset, getStatus", () => {
     expect(typeof vektis.init).toBe("function");
+    expect(typeof vektis.initFromDataset).toBe("function");
     expect(typeof vektis.identify).toBe("function");
     expect(typeof vektis.track).toBe("function");
     expect(typeof vektis.flush).toBe("function");
@@ -79,6 +80,98 @@ describe("pre-init queue", () => {
     expect(
       (console.warn as jest.Mock).mock.calls.some((c) =>
         String(c[0]).includes("VEK_TRK_PRE_INIT_QUEUE_OVERFLOW")
+      )
+    ).toBe(true);
+  });
+});
+
+describe("initFromDataset (ESM / importmap bootstrap, VEK-576)", () => {
+  afterEach(() => {
+    document.body.innerHTML = "";
+  });
+
+  function mount(attrs: Record<string, string>): HTMLElement {
+    const el = document.createElement("div");
+    for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, v);
+    document.body.appendChild(el);
+    return el;
+  }
+
+  test("initializes and identifies from the passed element", () => {
+    const el = mount({
+      "data-vektis-key": "vk_pub_prd_abc",
+      "data-vektis-customer-id": "cust_a",
+      "data-vektis-user-id": "u1",
+    });
+
+    vektis.initFromDataset(el);
+
+    expect(vektis.getStatus()).toMatchObject({
+      state: "READY",
+      identityCustomerId: "cust_a",
+      identityUserId: "u1",
+    });
+  });
+
+  test("with no argument, finds the first [data-vektis-key] element in the document", () => {
+    mount({
+      "data-vektis-key": "vk_pub_prd_abc",
+      "data-vektis-customer-id": "cust_a",
+    });
+
+    vektis.initFromDataset();
+
+    expect(vektis.getStatus().state).toBe("READY");
+    expect(vektis.getStatus().identityCustomerId).toBe("cust_a");
+  });
+
+  test("no-op when no element carries data-vektis-key", () => {
+    mount({ "data-vektis-customer-id": "cust_a" });
+    vektis.initFromDataset();
+    expect(vektis.getStatus().state).toBe("UNINITIALIZED");
+  });
+
+  test("no-op when the passed element has no data-vektis-key", () => {
+    vektis.initFromDataset(mount({}));
+    expect(vektis.getStatus().state).toBe("UNINITIALIZED");
+  });
+
+  test("wires the real singleton — track() after it reaches the transport", async () => {
+    vektis.initFromDataset(
+      mount({
+        "data-vektis-key": "vk_pub_prd_abc",
+        "data-vektis-customer-id": "cust_a",
+      })
+    );
+    vektis.track("feature.used", { feature_id: "f1" });
+    await vektis.flush();
+
+    const fetchFn = (global as any).fetch as jest.Mock;
+    const events = fetchFn.mock.calls
+      .filter((c: any[]) => (c[1] as any).method === "POST")
+      .flatMap((c: any[]) => JSON.parse((c[1] as any).body).events);
+    expect(
+      events.some(
+        (e: any) => e.event_type === "feature.used" && e.feature_id === "f1"
+      )
+    ).toBe(true);
+    expect(events.every((e: any) => e.customer_id === "cust_a")).toBe(true);
+  });
+
+  test("endpoint and debug attributes reach init", async () => {
+    vektis.initFromDataset(
+      mount({
+        "data-vektis-key": "vk_pub_prd_abc",
+        "data-vektis-endpoint": "http://localhost:3333/api/v1/events",
+        "data-vektis-customer-id": "cust_a",
+      })
+    );
+    await vektis.flush();
+
+    const fetchFn = (global as any).fetch as jest.Mock;
+    expect(
+      fetchFn.mock.calls.some(
+        (c: any[]) => c[0] === "http://localhost:3333/api/v1/events"
       )
     ).toBe(true);
   });
