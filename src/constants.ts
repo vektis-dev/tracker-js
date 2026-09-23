@@ -1,7 +1,7 @@
 // SDK defaults. Tweaking any of these requires careful thought about server
 // behavior (see vanalytics validators/event.schema.ts for the wire contract).
 
-export const SDK_VERSION = "1.0.0";
+export const SDK_VERSION = "1.4.1";
 export const SDK_HEADER = `js/${SDK_VERSION}`;
 
 export const DEFAULT_ENDPOINT = "https://events.vektis.io/api/v1/events";

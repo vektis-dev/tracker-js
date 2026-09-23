@@ -59,7 +59,7 @@ bin/importmap pin @vektis-io/tracker/errors --download
 You can pin from a CDN instead:
 
 ```ruby
-pin "@vektis-io/tracker", to: "https://ga.jspm.io/npm:@vektis-io/tracker@1.3.0/dist/vektis-tracker.esm.js"
+pin "@vektis-io/tracker", to: "https://ga.jspm.io/npm:@vektis-io/tracker@1.4.1/dist/vektis-tracker.esm.js"
 ```
 
 Pin an exact version — JSPM URLs don't accept ranges. The trade-off: nothing to commit and nothing to re-vendor on upgrade, but you take a runtime dependency on a third-party origin, lose offline development, and need a `script-src` CSP entry that the vendored path doesn't require.

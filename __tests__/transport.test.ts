@@ -4,6 +4,18 @@ import {
   sendViaKeepaliveFetch,
 } from "../src/transport";
 import type { TrackEventsPayload } from "../src/types";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import { SDK_VERSION } from "../src/constants";
+
+const PKG_VERSION: string = JSON.parse(
+  readFileSync(join(process.cwd(), "package.json"), "utf8"),
+).version;
+
+// SDK_VERSION is hardcoded, so it silently drifts unless bumped with package.json.
+test("SDK_VERSION matches package.json version", () => {
+  expect(SDK_VERSION).toBe(PKG_VERSION);
+});
 
 const PAYLOAD: TrackEventsPayload = {
   events: [
@@ -49,7 +61,7 @@ describe("transport.sendViaFetch", () => {
     expect(fetchFn).toHaveBeenCalledTimes(1);
     const init = fetchFn.mock.calls[0][1];
     expect(init.headers["X-Vektis-Key"]).toBe("vk_test_abc");
-    expect(init.headers["X-Vektis-SDK"]).toBe("js/1.0.0");
+    expect(init.headers["X-Vektis-SDK"]).toBe(`js/${PKG_VERSION}`);
     expect(init.headers["Content-Type"]).toBe("application/json");
   });
 
@@ -189,7 +201,7 @@ describe("transport.sendViaKeepaliveFetch", () => {
     expect(url).toBe(OPTS.endpoint);
     expect(init.method).toBe("POST");
     expect(init.keepalive).toBe(true);
-    expect(init.headers["X-Vektis-SDK"]).toBe("js/1.0.0");
+    expect(init.headers["X-Vektis-SDK"]).toBe(`js/${PKG_VERSION}`);
     expect(init.headers["Content-Type"]).toBe("application/json");
     const parsed = JSON.parse(init.body);
     expect(parsed.key).toBe("vk_test_abc");
